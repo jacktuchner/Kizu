@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
         gender: user.profile.gender || null,
         activityLevel: user.profile.activityLevel,
         recoveryGoals: user.profile.recoveryGoals,
-        status: "PENDING_REVIEW",
+        status: (user.contributorStatus === "APPROVED" || user.role === "ADMIN") ? "PUBLISHED" : "PENDING_REVIEW",
         faqPromptId: faqPromptId || null,
         transcription: transcription || null,
         transcriptionStatus: transcriptionStatus || "NONE",

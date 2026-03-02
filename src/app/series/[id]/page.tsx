@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import ReportButton from "@/components/ReportButton";
 
 const activityLabels: Record<string, string> = {
   SEDENTARY: "Sedentary",
@@ -192,6 +193,11 @@ export default function SeriesDetailPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Report Button */}
+        <div className="px-6 pb-4 flex justify-end">
+          <ReportButton seriesId={series.id} contentTitle={series.title} />
         </div>
 
         {/* Book a Call CTA */}

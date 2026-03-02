@@ -24,15 +24,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Fetch counts for nav badges
     async function fetchCounts() {
       try {
-        const [appsRes, usersRes] = await Promise.all([
+        const [appsRes, usersRes, reportsRes] = await Promise.all([
           fetch("/api/admin/applications?status=PENDING_REVIEW&limit=1"),
           fetch("/api/admin/users?limit=1"),
+          fetch("/api/reports?status=PENDING"),
         ]);
         const appsData = appsRes.ok ? await appsRes.json() : null;
         const usersData = usersRes.ok ? await usersRes.json() : null;
+        const reportsData = reportsRes.ok ? await reportsRes.json() : null;
         setNavCounts({
           applications: appsData?.pagination?.total || 0,
           users: usersData?.pagination?.total || 0,
+          reports: reportsData?.reports?.length || 0,
         });
       } catch {
         // Silently fail — counts are just nice-to-have
@@ -58,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/applications", label: "Applications", icon: "📋", countKey: "applications" },
     { href: "/admin/recordings", label: "Recordings", icon: "🎙️", countKey: "" },
     { href: "/admin/users", label: "Users", icon: "👥", countKey: "users" },
-    { href: "/admin/reports", label: "Reports", icon: "🚩", countKey: "" },
+    { href: "/admin/reports", label: "Reports", icon: "🚩", countKey: "reports" },
     { href: "/admin/payments", label: "Payments", icon: "💰", countKey: "" },
   ];
 
@@ -86,7 +89,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span className="flex-1">{item.label}</span>
                 {item.countKey && navCounts[item.countKey] != null && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    item.countKey === "applications" && navCounts[item.countKey] > 0
+                    (item.countKey === "applications" || item.countKey === "reports") && navCounts[item.countKey] > 0
                       ? "bg-amber-100 text-amber-700 font-medium"
                       : "bg-gray-100 text-gray-500"
                   }`}>

@@ -6,7 +6,6 @@ import { PROCEDURE_TYPES, CHRONIC_PAIN_CONDITIONS } from "@/lib/constants";
 interface Recording {
   id: string;
   title: string;
-  price: number;
   status: string;
   procedureType: string;
 }
@@ -311,7 +310,7 @@ export default function SeriesForm({ initialData, onSuccess, onCancel }: SeriesF
         {/* Note about publishing */}
         {selectedRecordingIds.length < 2 && (
           <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            Note: You need at least 2 recordings to publish a series. You can create the series now and add recordings later.
+            A series needs at least 2 recordings to go live. You can create the series now and add recordings later.
           </p>
         )}
 
@@ -327,7 +326,7 @@ export default function SeriesForm({ initialData, onSuccess, onCancel }: SeriesF
             disabled={saving}
             className="px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Series"}
+            {saving ? "Saving..." : isEditing ? "Save Changes" : selectedRecordingIds.length >= 2 ? "Publish Series" : "Create Series"}
           </button>
         </div>
       </div>

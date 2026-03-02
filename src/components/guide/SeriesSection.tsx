@@ -88,7 +88,7 @@ export default function SeriesSection({ series, onSeriesUpdate }: SeriesSectionP
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold">Your Series</h2>
-          <p className="text-sm text-gray-500 mt-1">Bundle recordings together with a discount</p>
+          <p className="text-sm text-gray-500 mt-1">Bundle related recordings into a series</p>
         </div>
         <button onClick={() => { setEditingSeries(null); setShowSeriesForm(!showSeriesForm); }} className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium">+ New Series</button>
       </div>
@@ -118,7 +118,7 @@ export default function SeriesSection({ series, onSeriesUpdate }: SeriesSectionP
             </svg>
           </div>
           <p className="text-gray-500 mb-2">No series yet</p>
-          <p className="text-sm text-gray-400">Create a series to bundle related recordings and offer a discount</p>
+          <p className="text-sm text-gray-400">Create a series to bundle related recordings together</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -133,7 +133,7 @@ export default function SeriesSection({ series, onSeriesUpdate }: SeriesSectionP
                   </div>
                   <div>
                     <Link href={`/series/${s.id}`} className="font-medium hover:text-purple-700">{s.title}</Link>
-                    <p className="text-sm text-gray-500">{s.procedureType} &middot; {s.discountPercent}% discount</p>
+                    <p className="text-sm text-gray-500">{s.procedureType} &middot; {recordingCount} recording{recordingCount !== 1 ? "s" : ""}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

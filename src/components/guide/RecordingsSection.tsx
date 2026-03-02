@@ -30,7 +30,6 @@ export default function RecordingsSection({ recordings, onRecordingsUpdate }: Re
         body: JSON.stringify({
           title: editingRecording.title,
           description: editingRecording.description,
-          price: editingRecording.price,
           category: editingRecording.category,
         }),
       });
@@ -104,22 +103,16 @@ export default function RecordingsSection({ recordings, onRecordingsUpdate }: Re
                       <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
                       <textarea value={editingRecording.description || ""} onChange={(e) => setEditingRecording({ ...editingRecording, description: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" rows={2} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Price ($)</label>
-                        <input type="number" min={1} max={50} step={0.01} value={editingRecording.price} onChange={(e) => setEditingRecording({ ...editingRecording, price: parseFloat(e.target.value) || 4.99 })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                        <select value={editingRecording.category} onChange={(e) => setEditingRecording({ ...editingRecording, category: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                          <option value="WEEKLY_TIMELINE">Timeline</option>
-                          <option value="WISH_I_KNEW">Wish I Knew</option>
-                          <option value="PRACTICAL_TIPS">Practical Tips</option>
-                          <option value="MENTAL_HEALTH">Mental Health</option>
-                          <option value="RETURN_TO_ACTIVITY">Return to Activity</option>
-                          <option value="MISTAKES_AND_LESSONS">Mistakes & Lessons</option>
-                        </select>
-                      </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                      <select value={editingRecording.category} onChange={(e) => setEditingRecording({ ...editingRecording, category: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="WEEKLY_TIMELINE">Timeline</option>
+                        <option value="WISH_I_KNEW">Wish I Knew</option>
+                        <option value="PRACTICAL_TIPS">Practical Tips</option>
+                        <option value="MENTAL_HEALTH">Mental Health</option>
+                        <option value="RETURN_TO_ACTIVITY">Return to Activity</option>
+                        <option value="MISTAKES_AND_LESSONS">Mistakes & Lessons</option>
+                      </select>
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button onClick={saveRecordingEdit} disabled={savingRecording} className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium">{savingRecording ? "Saving..." : "Save"}</button>
@@ -135,7 +128,7 @@ export default function RecordingsSection({ recordings, onRecordingsUpdate }: Re
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{rec.title}</p>
                   <p className="text-sm text-gray-500">
-                    {rec.category.replace(/_/g, " ")} &middot; ${rec.price} &middot; {rec.viewCount} views
+                    {rec.category.replace(/_/g, " ")} &middot; {rec.viewCount} views
                     {rec.transcriptionStatus && rec.transcriptionStatus !== "NONE" && (
                       <span className={`ml-2 ${rec.transcriptionStatus === "COMPLETED" ? "text-green-600" : rec.transcriptionStatus === "PENDING" ? "text-yellow-600" : "text-red-600"}`}>
                         &middot; Transcription: {rec.transcriptionStatus.toLowerCase()}

@@ -184,6 +184,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Gate content creation: require approved guide status
+    if (user.role !== "ADMIN" && user.contributorStatus !== "APPROVED") {
+      return NextResponse.json(
+        { error: "Your guide application must be approved before creating series" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { title, description, procedureType, discountPercent, recordingIds } = body;
 
@@ -208,7 +216,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         procedureType,
         discountPercent: discount,
-        status: "DRAFT",
+        status: (user.contributorStatus === "APPROVED" || user.role === "ADMIN") && recordingIds?.length >= 2 ? "PUBLISHED" : "DRAFT",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })

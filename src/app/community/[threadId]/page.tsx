@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FORUM_THREAD_TYPES } from "@/lib/constants";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import ReportButton from "@/components/ReportButton";
 
 function timeAgo(dateStr: string) {
   const now = Date.now();
@@ -245,6 +246,7 @@ export default function ThreadDetailPage({ params }: { params: Promise<{ threadI
               {thread.isPinned ? "Unpin" : "Pin Thread"}
             </button>
           )}
+          <ReportButton forumThreadId={thread.id} contentTitle={thread.title} />
           <span className="text-sm text-gray-400 ml-auto">
             {thread.replyCount || 0} {thread.replyCount === 1 ? "reply" : "replies"}
           </span>

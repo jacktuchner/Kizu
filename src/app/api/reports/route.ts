@@ -13,12 +13,12 @@ export async function POST(req: NextRequest) {
 
     const userId = (session.user as Record<string, string>).id;
     const body = await req.json();
-    const { recordingId, reportedUserId, callId, reviewId, reason, details } = body;
+    const { recordingId, reportedUserId, callId, reviewId, seriesId, forumThreadId, reason, details } = body;
 
     // Validate that at least one target is specified
-    if (!recordingId && !reportedUserId && !callId && !reviewId) {
+    if (!recordingId && !reportedUserId && !callId && !reviewId && !seriesId && !forumThreadId) {
       return NextResponse.json(
-        { error: "Must specify recordingId, reportedUserId, callId, or reviewId" },
+        { error: "Must specify a report target (recordingId, reportedUserId, callId, reviewId, seriesId, or forumThreadId)" },
         { status: 400 }
       );
     }
@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
       .select("id")
       .eq("reporterId", userId);
 
-    if (reviewId) {
+    if (forumThreadId) {
+      existingQuery = existingQuery.eq("forumThreadId", forumThreadId);
+    } else if (seriesId) {
+      existingQuery = existingQuery.eq("seriesId", seriesId);
+    } else if (reviewId) {
       existingQuery = existingQuery.eq("reviewId", reviewId);
     } else if (recordingId) {
       existingQuery = existingQuery.eq("recordingId", recordingId);
@@ -64,6 +68,8 @@ export async function POST(req: NextRequest) {
         userId: reportedUserId || null,
         callId: callId || null,
         reviewId: reviewId || null,
+        seriesId: seriesId || null,
+        forumThreadId: forumThreadId || null,
         reason,
         details: details || null,
         status: "PENDING",
@@ -100,7 +106,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
-    const type = searchParams.get("type"); // "recording", "user", "call", "review"
+    const type = searchParams.get("type"); // "recording", "user", "call", "review", "series", "thread"
 
     let query = supabase
       .from("Report")
@@ -110,7 +116,9 @@ export async function GET(req: NextRequest) {
         recording:Recording(id, title, contributorId),
         reportedUser:User!Report_userId_fkey(id, name, email),
         call:Call(id, scheduledAt, patientId, contributorId),
-        review:Review(id, rating, comment, authorId, subjectId)
+        review:Review(id, rating, comment, authorId, subjectId),
+        series:RecordingSeries(id, title, contributorId),
+        forumThread:ForumThread(id, title, authorId)
       `)
       .order("createdAt", { ascending: false });
 
@@ -126,6 +134,10 @@ export async function GET(req: NextRequest) {
       query = query.not("callId", "is", null);
     } else if (type === "review") {
       query = query.not("reviewId", "is", null);
+    } else if (type === "series") {
+      query = query.not("seriesId", "is", null);
+    } else if (type === "thread") {
+      query = query.not("forumThreadId", "is", null);
     }
 
     const { data: reports, error } = await query;
