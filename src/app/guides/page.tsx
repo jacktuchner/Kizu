@@ -60,7 +60,7 @@ function GuideCard({ guide, isOwn, hideMatchScore }: { guide: Guide; isOwn?: boo
 
   return (
     <Link href={`/guides/${guide.id}`} className="block group">
-      <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-cyan-200 transition-all h-full flex flex-col">
+      <div className={`bg-white rounded-xl border p-6 hover:shadow-lg hover:border-cyan-200 transition-all h-full flex flex-col ${isOwn ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"}`}>
         <div className="flex items-start gap-4 mb-4">
           <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-xl">
@@ -89,9 +89,6 @@ function GuideCard({ guide, isOwn, hideMatchScore }: { guide: Guide; isOwn?: boo
               </span>
             )}
           </div>
-          {isOwn && (
-            <span className="text-[11px] text-gray-400 italic flex-shrink-0">Your profile</span>
-          )}
           {guide.matchScore !== undefined && !hideMatchScore && (
             <div className="flex items-center flex-shrink-0">
               <span className={`text-sm font-bold px-2.5 py-1 rounded-full ${

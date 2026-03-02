@@ -368,7 +368,7 @@ export default function CommunityPage() {
               <div
                 key={thread.id}
                 className={`bg-white border rounded-xl p-4 hover:border-teal-200 transition-colors ${
-                  thread.isPinned ? "border-teal-300 bg-teal-50/30" : "border-gray-200"
+                  thread.isPinned ? "border-teal-300 bg-teal-50/30" : isOwnThread ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -395,9 +395,6 @@ export default function CommunityPage() {
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       <span className="font-medium text-gray-700">{thread.author?.name || "Anonymous"}</span>
                       {authorIsGuide && <VerifiedBadge />}
-                      {isOwnThread && (
-                        <span className="text-[11px] text-gray-400 italic">Your post</span>
-                      )}
                       <span>&middot;</span>
                       <span>{timeAgo(thread.createdAt)}</span>
                     </div>

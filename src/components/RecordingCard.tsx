@@ -93,7 +93,7 @@ export default function RecordingCard({
   const showMatchScore = matchScore !== undefined && !hideMatchScore;
   return (
     <Link href={`/recordings/${id}`} className="block group h-full">
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-teal-200 transition-all h-full flex flex-col">
+      <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg hover:border-teal-200 transition-all h-full flex flex-col ${isOwn ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"}`}>
         <div className="relative">
           {isVideo && thumbnailUrl ? (
             <div className="relative aspect-video bg-gray-900">
@@ -127,6 +127,11 @@ export default function RecordingCard({
                   </div>
                 )}
               </div>
+              {guideVerified && (
+                <div className="absolute top-2 right-2">
+                  <VerifiedBadge />
+                </div>
+              )}
               {durationSeconds && (
                 <span className="absolute bottom-2 right-2 text-xs bg-black/60 text-white px-1.5 py-0.5 rounded">
                   {formatDuration(durationSeconds)}
@@ -139,18 +144,21 @@ export default function RecordingCard({
                 <span className="text-xs font-medium bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">
                   {isVideo ? "Video" : "Audio"}
                 </span>
-                {showMatchScore && (
-                  <div className="flex items-center">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      matchScore >= 80 ? "bg-green-100 text-green-700" :
-                      matchScore >= 60 ? "bg-yellow-100 text-yellow-700" :
-                      "bg-gray-100 text-gray-600"
-                    }`}>
-                      {matchScore}% match
-                    </span>
-                    {matchBreakdown && <MatchScoreTooltip breakdown={matchBreakdown} />}
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {showMatchScore && (
+                    <div className="flex items-center">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        matchScore >= 80 ? "bg-green-100 text-green-700" :
+                        matchScore >= 60 ? "bg-yellow-100 text-yellow-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {matchScore}% match
+                      </span>
+                      {matchBreakdown && <MatchScoreTooltip breakdown={matchBreakdown} />}
+                    </div>
+                  )}
+                  {guideVerified && <VerifiedBadge />}
+                </div>
               </div>
               <div className="flex items-center justify-center h-16">
                 <svg className="w-12 h-12 text-teal-300 group-hover:text-teal-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
@@ -170,13 +178,7 @@ export default function RecordingCard({
           <h3 className="font-semibold text-gray-900 group-hover:text-teal-700 transition-colors line-clamp-2 mb-1 min-h-[2.75rem]">
             {title}
           </h3>
-          <div className="flex items-center gap-1.5 mb-3">
-            <p className="text-sm text-gray-500">{guideName}</p>
-            {guideVerified && <VerifiedBadge />}
-            {isOwn && (
-              <span className="text-[11px] text-gray-400 italic">Your recording</span>
-            )}
-          </div>
+          <p className="text-sm text-gray-500 mb-3">{guideName}</p>
 
           <div className="flex flex-wrap gap-1.5 mb-3 min-h-[3.25rem]">
             <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full h-fit">{procedureType}</span>
