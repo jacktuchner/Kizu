@@ -74,7 +74,7 @@ export default function SeriesCard({
   const showMatchScore = matchScore !== undefined && !hideMatchScore;
   return (
     <Link href={`/series/${id}`} className="block group">
-      <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg hover:border-purple-200 transition-all ${isOwn ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"}`}>
+      <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-lg hover:border-purple-200 transition-all ${isOwn ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"}`} title={isOwn ? "Your series" : undefined}>
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 relative">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -131,13 +131,18 @@ export default function SeriesCard({
           </h3>
           <p className="text-sm text-gray-500 mb-3">{guideName}</p>
 
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-              {procedureType}
-            </span>
-            <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">
-              {recordingCount} recordings
-            </span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                {procedureType}
+              </span>
+              <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">
+                {recordingCount} recordings
+              </span>
+            </div>
+            {isOwn && (
+              <span className="text-[11px] text-gray-400 italic sm:hidden">Yours</span>
+            )}
           </div>
 
         </div>

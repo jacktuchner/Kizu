@@ -370,6 +370,7 @@ export default function CommunityPage() {
                 className={`bg-white border rounded-xl p-4 hover:border-teal-200 transition-colors ${
                   thread.isPinned ? "border-teal-300 bg-teal-50/30" : isOwnThread ? "border-l-2 border-l-teal-300 border-gray-200" : "border-gray-200"
                 }`}
+                title={isOwnThread ? "Your post" : undefined}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -400,6 +401,9 @@ export default function CommunityPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-gray-500 flex-shrink-0">
+                    {isOwnThread && (
+                      <span className="text-[11px] text-gray-400 italic sm:hidden">Yours</span>
+                    )}
                     <div className="flex items-center gap-1" title="Replies">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
