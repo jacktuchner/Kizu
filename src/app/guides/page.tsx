@@ -416,24 +416,49 @@ function GuidesContent() {
             </div>
           )}
 
-          {/* Looking for recordings CTA */}
-          <div className="mb-8 p-4 bg-teal-50 border border-teal-200 rounded-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <p className="font-medium text-teal-900">Prefer to learn at your own pace?</p>
-                <p className="text-sm text-teal-700">Browse recorded recovery stories you can watch anytime.</p>
+          {/* CTA - upgrade prompt for guide-only, recordings cross-promo for others */}
+          {isGuideOnly ? (
+            <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">Want to book a session?</p>
+                  <p className="text-sm text-gray-600">Add a health profile so we can match you with the right guide.</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/user/upgrade-role", { method: "POST" });
+                      const data = await res.json();
+                      window.location.href = data.redirect || "/dashboard/seeker";
+                    } catch {
+                      window.location.href = "/dashboard/seeker";
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  Set Up Health Profile
+                </button>
               </div>
-              <Link
-                href="/watch"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium whitespace-nowrap"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Watch Stories
-              </Link>
             </div>
-          </div>
+          ) : (
+            <div className="mb-8 p-4 bg-teal-50 border border-teal-200 rounded-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="font-medium text-teal-900">Prefer to learn at your own pace?</p>
+                  <p className="text-sm text-teal-700">Browse recorded recovery stories you can watch anytime.</p>
+                </div>
+                <Link
+                  href="/watch"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Watch Stories
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Search and Sort Bar */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
