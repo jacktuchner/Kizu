@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { JOURNAL_MILESTONE_PRESETS, JOURNAL_MILESTONE_PRESETS_CHRONIC_PAIN, JOURNAL_MOOD_EMOJIS, JOURNAL_NUDGE_DAYS, JOURNAL_TRIGGER_PRESETS } from "@/lib/constants";
+import { JOURNAL_MILESTONE_PRESETS, JOURNAL_MILESTONE_PRESETS_CHRONIC_PAIN, JOURNAL_MOOD_EMOJIS, JOURNAL_TRIGGER_PRESETS } from "@/lib/constants";
 import { getTimeSinceSurgeryLabel, getTimeSinceDiagnosisLabel } from "@/lib/surgeryDate";
 
 interface JournalEntry {
@@ -244,13 +244,6 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
   const weekLabel = isViewAll ? null : (isChronicPain ? null : (effectiveSurgeryDate ? getTimeSinceSurgeryLabel(effectiveSurgeryDate) : null));
   const diagnosisLabel = isViewAll ? null : (isChronicPain && effectiveSurgeryDate ? getTimeSinceDiagnosisLabel(effectiveSurgeryDate) : null);
 
-  // Nudge: no entries or last entry > 7 days ago
-  const lastEntryDate = entries.length > 0 ? parseDate(entries[0].createdAt) : null;
-  const daysSinceLast = lastEntryDate
-    ? Math.floor((Date.now() - lastEntryDate.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
-  const showNudge = !showForm && (entries.length === 0 || (daysSinceLast !== null && daysSinceLast >= JOURNAL_NUDGE_DAYS));
-
   // Quick stats from latest 2 entries
   const latest = entries[0] || null;
   const previous = entries[1] || null;
@@ -413,7 +406,7 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
             <select
               value={selectedCondition}
               onChange={(e) => setSelectedCondition(e.target.value)}
-              className="border border-gray-200 rounded-lg px-2.5 py-1 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-base bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
             >
               {procedures!.map((p) => (
                 <option key={p.procedureType} value={p.procedureType}>
@@ -497,24 +490,11 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
       {/* Trend Chart */}
       {showChart && renderChart()}
 
-      {/* Nudge Banner */}
-      {showNudge && (
-        <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 my-4 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-cyan-900">How&apos;s recovery going?</p>
-            <p className="text-sm text-cyan-700">
-              {entries.length === 0
-                ? "Start tracking your progress today."
-                : `It's been ${daysSinceLast} days since your last entry.`}
-            </p>
-          </div>
-          <button
-            onClick={openNewEntry}
-            className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 text-sm font-medium whitespace-nowrap"
-          >
-            Log Entry
-          </button>
-        </div>
+      {/* Nudge text when no entries — just a subtle line, not a banner */}
+      {entries.length === 0 && !showForm && (
+        <p className="text-gray-400 text-sm text-center py-4">
+          No entries yet. Tap <strong>+ New Entry</strong> to start tracking.
+        </p>
       )}
 
       {/* Entry Form */}
@@ -750,12 +730,6 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
         </div>
       )}
 
-      {/* Empty State */}
-      {entries.length === 0 && !showForm && !showNudge && (
-        <p className="text-gray-400 text-sm text-center py-6">
-          Start tracking your recovery journey. Log your first entry to see trends and milestones.
-        </p>
-      )}
 
       {/* Entry Feed */}
       {entries.length > 0 && (
