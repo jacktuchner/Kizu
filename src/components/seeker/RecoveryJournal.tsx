@@ -406,14 +406,15 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
             <select
               value={selectedCondition}
               onChange={(e) => setSelectedCondition(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-lg bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              className="border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              style={{ fontSize: "1.125rem" }}
             >
               {procedures!.map((p) => (
-                <option key={p.procedureType} value={p.procedureType}>
+                <option key={p.procedureType} value={p.procedureType} style={{ fontSize: "1.125rem" }}>
                   {p.procedureType}
                 </option>
               ))}
-              <option value="__ALL__">View All</option>
+              <option value="__ALL__" style={{ fontSize: "1.125rem" }}>View All</option>
             </select>
           )}
           {weekLabel && (

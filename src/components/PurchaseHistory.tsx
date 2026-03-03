@@ -38,7 +38,10 @@ export default function PurchaseHistory({ role }: { role: "seeker" | "guide" }) 
       const res = await fetch(`/api/payments/history?role=${role}&page=${page}`);
       if (!res.ok) throw new Error("Failed to load payment history.");
       const data = await res.json();
-      setPayments(data.payments || []);
+      const filtered = (data.payments || []).filter(
+        (p: Payment) => p.type !== "RECORDING_PURCHASE"
+      );
+      setPayments(filtered);
       setPagination(data.pagination || { page: 1, totalPages: 1, total: 0 });
     } catch (err) {
       console.error(err);
