@@ -53,8 +53,23 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existingPayment) {
-      // Already processed by webhook
+      // Already processed by webhook — fetch call details for the success page
       const callId = (existingPayment.metadata as any)?.callId;
+      if (callId) {
+        const { data: existingCall } = await supabase
+          .from("Call")
+          .select("scheduledAt, durationMinutes, videoRoomUrl, guide:User!Call_contributorId_fkey(name)")
+          .eq("id", callId)
+          .single();
+        return NextResponse.json({
+          status: "already_created",
+          callId,
+          guideName: (existingCall?.guide as any)?.name || "Guide",
+          scheduledAt: existingCall?.scheduledAt,
+          durationMinutes: existingCall?.durationMinutes,
+          videoRoomUrl: existingCall?.videoRoomUrl,
+        });
+      }
       return NextResponse.json({ status: "already_created", callId });
     }
 
@@ -139,13 +154,18 @@ export async function POST(req: NextRequest) {
     // Send emails to both parties
     const { data: seeker } = await supabase
       .from("User")
-      .select("name, email, profile:Profile(activeProcedureType)")
+      .select("name, email, profile:Profile(activeProcedureType, recoveryGoals, surgeryDate, timeSinceSurgery)")
       .eq("id", userId)
       .single();
 
     // Notification email to guide
     if (guide.email) {
-      const seekerCondition = (seeker?.profile as any)?.activeProcedureType || undefined;
+      const seekerProfile = seeker?.profile as any;
+      const seekerCondition = seekerProfile?.activeProcedureType || undefined;
+      const seekerGoals: string[] = seekerProfile?.recoveryGoals || [];
+      const seekerSurgeryInfo = seekerProfile?.surgeryDate
+        ? seekerProfile.surgeryDate
+        : seekerProfile?.timeSinceSurgery || undefined;
       sendCallBookedEmail(
         guide.email,
         guide.name || "Guide",
@@ -155,7 +175,11 @@ export async function POST(req: NextRequest) {
         questionsInAdvance,
         videoRoomUrl,
         false,
-        seekerCondition ? { seekerCondition } : undefined
+        {
+          seekerCondition,
+          seekerGoals: seekerGoals.length > 0 ? seekerGoals : undefined,
+          seekerSurgeryInfo,
+        }
       ).catch((err) => console.error("Failed to send call booked email:", err));
     }
 
@@ -180,7 +204,14 @@ export async function POST(req: NextRequest) {
       ).catch((err) => console.error("Failed to send call confirmed email to seeker:", err));
     }
 
-    return NextResponse.json({ status: "created", callId });
+    return NextResponse.json({
+      status: "created",
+      callId,
+      guideName: guide.name || "Guide",
+      scheduledAt,
+      durationMinutes: duration,
+      videoRoomUrl,
+    });
   } catch (error) {
     console.error("Error verifying call checkout:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

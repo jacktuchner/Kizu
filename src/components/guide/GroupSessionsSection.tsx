@@ -415,6 +415,7 @@ export default function GroupSessionsSection({ sessions, guideProcedures, onSess
                       callId={s.id}
                       scheduledAt={s.scheduledAt}
                       durationMinutes={s.durationMinutes}
+                      type="group-session"
                     />
                   </div>
                 )}

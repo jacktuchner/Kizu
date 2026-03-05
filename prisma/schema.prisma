@@ -100,6 +100,7 @@ model User {
   reviewsReceived Review[]  @relation("ReviewSubject")
   availability   Availability[]
   blockedDates   BlockedDate[]  @relation("BlockedDates")
+  dateOverrides  DateOverride[]
   payments       Payment[]
   recordingAccess RecordingAccess[]
   reportsSubmitted Report[] @relation("ReportsSubmitted")
@@ -149,6 +150,8 @@ model Profile {
   // Contributor-specific
   hourlyRate        Float?        // For live calls (in dollars)
   isAvailableForCalls Boolean     @default(false)
+  callBufferMinutes Int           @default(15)
+  maxCallsPerWeek   Int?
 
   // Intro video
   introVideoUrl     String?       // S3 URL for uploaded intro video
@@ -293,6 +296,21 @@ model BlockedDate {
   createdAt       DateTime @default(now())
 
   @@unique([contributorId, date])
+}
+
+model DateOverride {
+  id              String   @id @default(cuid())
+  contributorId   String
+  contributor     User     @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+
+  date            String   // "2026-03-15" YYYY-MM-DD
+  isBlocked       Boolean  @default(false)
+  startTime       String?  // null if blocked, "09:00" if custom hours
+  endTime         String?  // null if blocked, "17:00" if custom hours
+
+  createdAt       DateTime @default(now())
+
+  @@index([contributorId, date])
 }
 
 model Call {

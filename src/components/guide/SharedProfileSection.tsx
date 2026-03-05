@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AGE_RANGES, GENDERS, ACTIVITY_LEVELS, MIN_CALL_RATE, MAX_CALL_RATE } from "@/lib/constants";
-import AvailabilityManager from "@/components/AvailabilityManager";
+import { AGE_RANGES, GENDERS, ACTIVITY_LEVELS } from "@/lib/constants";
 
 interface SharedProfileSectionProps {
   profile: any;
@@ -74,56 +73,23 @@ export default function SharedProfileSection({ profile, sharedForm, onSharedForm
           <div className="grid sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Age Range *</label>
-              <select value={sharedForm.ageRange} onChange={(e) => onSharedFormChange({ ...sharedForm, ageRange: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <select value={sharedForm.ageRange} onChange={(e) => onSharedFormChange({ ...sharedForm, ageRange: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base">
                 <option value="">Select...</option>
                 {AGE_RANGES.map((a) => (<option key={a} value={a}>{a}</option>))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-              <select value={sharedForm.gender} onChange={(e) => onSharedFormChange({ ...sharedForm, gender: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <select value={sharedForm.gender} onChange={(e) => onSharedFormChange({ ...sharedForm, gender: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base">
                 <option value="">Select...</option>
                 {GENDERS.map((g) => (<option key={g.value} value={g.value}>{g.label}</option>))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Activity Level</label>
-              <select value={sharedForm.activityLevel} onChange={(e) => onSharedFormChange({ ...sharedForm, activityLevel: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+              <select value={sharedForm.activityLevel} onChange={(e) => onSharedFormChange({ ...sharedForm, activityLevel: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base">
                 {ACTIVITY_LEVELS.map((a) => (<option key={a.value} value={a.value}>{a.label}</option>))}
               </select>
-            </div>
-          </div>
-
-          <div className="border border-cyan-200 rounded-lg p-4 bg-cyan-50">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={sharedForm.isAvailableForCalls} onChange={(e) => onSharedFormChange({ ...sharedForm, isAvailableForCalls: e.target.checked })} className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 w-5 h-5" />
-                  <span className="font-semibold text-gray-900">Become a Guide</span>
-                </label>
-                <p className="text-sm text-gray-600 mt-1">Offer 1-on-1 video calls with seekers. You&apos;ll appear on the Guides page and can set your availability.</p>
-                {sharedForm.isAvailableForCalls && (
-                  <>
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Your Hourly Rate</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-500">$</span>
-                        <input type="number" min={MIN_CALL_RATE} max={MAX_CALL_RATE} value={sharedForm.hourlyRate} onChange={(e) => onSharedFormChange({ ...sharedForm, hourlyRate: parseInt(e.target.value) || 50 })} className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                        <span className="text-gray-500">/ hour</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Range: ${MIN_CALL_RATE} - ${MAX_CALL_RATE}</p>
-                    </div>
-                    <div className="mt-4">
-                      <AvailabilityManager />
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           </div>
 
@@ -142,37 +108,19 @@ export default function SharedProfileSection({ profile, sharedForm, onSharedForm
           </div>
         </div>
       ) : profile ? (
-        <div className="space-y-3">
-          <div className="grid sm:grid-cols-4 gap-4">
-            <div>
-              <p className="text-xs text-gray-500">Age Range</p>
-              <p className="font-medium">{profile.ageRange || "Not set"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Gender</p>
-              <p className="font-medium">{GENDERS.find((g: any) => g.value === profile.gender)?.label || "Not set"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Activity Level</p>
-              <p className="font-medium">{profile.activityLevel?.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase()) || "Not set"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Guide Calls</p>
-              {profile.isAvailableForCalls ? (
-                <p className="font-medium text-cyan-700 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                  Active (${profile.hourlyRate}/hr)
-                </p>
-              ) : (
-                <p className="font-medium text-gray-400">Not enabled</p>
-              )}
-            </div>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs text-gray-500">Age Range</p>
+            <p className="font-medium">{profile.ageRange || "Not set"}</p>
           </div>
-          {profile.isAvailableForCalls && (
-            <div className="mt-4">
-              <AvailabilityManager />
-            </div>
-          )}
+          <div>
+            <p className="text-xs text-gray-500">Gender</p>
+            <p className="font-medium">{GENDERS.find((g: any) => g.value === profile.gender)?.label || "Not set"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Activity Level</p>
+            <p className="font-medium">{profile.activityLevel?.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase()) || "Not set"}</p>
+          </div>
         </div>
       ) : (
         <p className="text-gray-500 text-sm">Add a procedure first, then complete your profile.</p>

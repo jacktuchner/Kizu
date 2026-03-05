@@ -133,6 +133,10 @@ export const RECORDING_CATEGORIES = [
   { value: "MISTAKES_AND_LESSONS", label: "Mistakes & Lessons", description: "What you would do differently knowing what you know now" },
 ] as const;
 
+// Call buffer & cap
+export const CALL_BUFFER_OPTIONS = [0, 15, 30, 45, 60] as const;
+export const DEFAULT_BUFFER_MINUTES = 15;
+
 export const PLATFORM_FEE_PERCENT = 25; // 25% platform commission on calls
 export const DEFAULT_CALL_DURATION = 30; // minutes
 export const MIN_CALL_RATE = 40;

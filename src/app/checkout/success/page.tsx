@@ -15,6 +15,12 @@ function SuccessContent() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [callStatus, setCallStatus] = useState<"verifying" | "confirmed" | "error">("verifying");
+  const [callDetails, setCallDetails] = useState<{
+    guideName?: string;
+    scheduledAt?: string;
+    durationMinutes?: number;
+    videoRoomUrl?: string;
+  } | null>(null);
 
   const isGroupSession = type === "group_session";
   const isCall = type === "call";
@@ -48,6 +54,12 @@ function SuccessContent() {
       .then((data) => {
         if (data.status === "created" || data.status === "already_created") {
           setCallStatus("confirmed");
+          setCallDetails({
+            guideName: data.guideName,
+            scheduledAt: data.scheduledAt,
+            durationMinutes: data.durationMinutes,
+            videoRoomUrl: data.videoRoomUrl,
+          });
         } else {
           setCallStatus("error");
         }
@@ -65,7 +77,44 @@ function SuccessContent() {
           <p className="text-red-600 text-sm">There was an issue confirming your call. Please check your dashboard or contact support.</p>
         )}
         {callStatus === "confirmed" && (
-          <p className="text-green-600 text-sm font-medium">Your call has been booked! The guide will be notified.</p>
+          <>
+            <p className="text-green-600 text-sm font-medium mb-3">Your call has been booked! The guide will be notified.</p>
+            {callDetails?.guideName && (
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 text-left w-full max-w-sm mx-auto">
+                <p className="text-sm text-gray-500 mb-1">Call with</p>
+                <p className="font-semibold text-gray-900 mb-3">{callDetails.guideName}</p>
+                {callDetails.scheduledAt && (
+                  <>
+                    <p className="text-sm text-gray-500 mb-0.5">Date &amp; Time</p>
+                    <p className="text-sm font-medium text-gray-800 mb-3">
+                      {new Date(callDetails.scheduledAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                      {" at "}
+                      {new Date(callDetails.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    </p>
+                  </>
+                )}
+                {callDetails.durationMinutes && (
+                  <>
+                    <p className="text-sm text-gray-500 mb-0.5">Duration</p>
+                    <p className="text-sm font-medium text-gray-800 mb-3">{callDetails.durationMinutes} minutes</p>
+                  </>
+                )}
+                {callDetails.videoRoomUrl && (
+                  <a
+                    href={callDetails.videoRoomUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm font-medium w-full justify-center mt-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Video Call Link
+                  </a>
+                )}
+              </div>
+            )}
+          </>
         )}
         <div className="flex gap-4 justify-center">
           <Link

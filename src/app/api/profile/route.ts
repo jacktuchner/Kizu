@@ -189,6 +189,14 @@ export async function PUT(req: NextRequest) {
       updateData.introVideoDuration = body.introVideoDuration || null;
     }
 
+    // Update call scheduling settings if provided
+    if (body.callBufferMinutes !== undefined) {
+      updateData.callBufferMinutes = body.callBufferMinutes;
+    }
+    if (body.maxCallsPerWeek !== undefined) {
+      updateData.maxCallsPerWeek = body.maxCallsPerWeek === null || body.maxCallsPerWeek === "" ? null : body.maxCallsPerWeek;
+    }
+
     const { data: profile, error } = await supabase
       .from("Profile")
       .update(updateData)

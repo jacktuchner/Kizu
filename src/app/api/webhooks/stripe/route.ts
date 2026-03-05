@@ -264,13 +264,18 @@ async function handleCallPayment(
   // Send emails to both parties
   const { data: seeker } = await supabase
     .from("User")
-    .select("name, email, profile:Profile(activeProcedureType)")
+    .select("name, email, profile:Profile(activeProcedureType, recoveryGoals, surgeryDate, timeSinceSurgery)")
     .eq("id", userId)
     .single();
 
   // Notification email to guide (no confirm/decline needed)
   if (guide.email) {
-    const seekerCondition = (seeker?.profile as any)?.activeProcedureType || undefined;
+    const seekerProfile = seeker?.profile as any;
+    const seekerCondition = seekerProfile?.activeProcedureType || undefined;
+    const seekerGoals: string[] = seekerProfile?.recoveryGoals || [];
+    const seekerSurgeryInfo = seekerProfile?.surgeryDate
+      ? seekerProfile.surgeryDate
+      : seekerProfile?.timeSinceSurgery || undefined;
     sendCallBookedEmail(
       guide.email,
       guide.name || "Guide",
@@ -280,7 +285,11 @@ async function handleCallPayment(
       questionsInAdvance,
       videoRoomUrl,
       false,
-      seekerCondition ? { seekerCondition } : undefined
+      {
+        seekerCondition,
+        seekerGoals: seekerGoals.length > 0 ? seekerGoals : undefined,
+        seekerSurgeryInfo,
+      }
     ).catch((err) => console.error("Failed to send call booked email:", err));
   }
 

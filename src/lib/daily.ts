@@ -51,7 +51,7 @@ export async function createRoom(options: CreateRoomOptions): Promise<string> {
       },
       body: JSON.stringify({
         name: `call-${callId}`,
-        privacy: "public",
+        privacy: "private",
         properties: {
           exp: Math.floor(Date.now() / 1000) + expiresInMinutes * 60,
           enable_chat: enableChat,
@@ -77,6 +77,50 @@ export async function createRoom(options: CreateRoomOptions): Promise<string> {
     console.error("Error creating Daily.co room:", error);
     throw error;
   }
+}
+
+/**
+ * Creates a meeting token for a private Daily.co room
+ */
+export async function createMeetingToken(options: {
+  roomName: string;
+  userName: string;
+  userId: string;
+  isOwner: boolean;
+  expiresInMinutes?: number;
+}): Promise<string> {
+  const { roomName, userName, userId, isOwner, expiresInMinutes = 120 } = options;
+
+  const apiKey = process.env.DAILY_API_KEY;
+  if (!apiKey) {
+    throw new Error("Video conferencing is not configured");
+  }
+
+  const response = await fetch("https://api.daily.co/v1/meeting-tokens", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      properties: {
+        room_name: roomName,
+        user_name: userName,
+        user_id: userId,
+        is_owner: isOwner,
+        exp: Math.floor(Date.now() / 1000) + expiresInMinutes * 60,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error("Daily.co meeting token error:", error);
+    throw new Error(error.error || "Failed to create meeting token");
+  }
+
+  const data = await response.json();
+  return data.token;
 }
 
 /**

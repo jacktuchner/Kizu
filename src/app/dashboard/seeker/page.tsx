@@ -1148,6 +1148,7 @@ export default function SeekerDashboard() {
                         callId={gs.id}
                         scheduledAt={gs.scheduledAt}
                         durationMinutes={gs.durationMinutes}
+                        type="group-session"
                       />
                     </div>
                   )}

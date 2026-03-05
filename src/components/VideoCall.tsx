@@ -8,6 +8,7 @@ interface VideoCallProps {
   callId: string;
   scheduledAt: string;
   durationMinutes: number;
+  type?: "call" | "group-session";
   onLeave?: () => void;
 }
 
@@ -16,10 +17,14 @@ export default function VideoCall({
   callId,
   scheduledAt,
   durationMinutes,
+  type = "call",
   onLeave,
 }: VideoCallProps) {
   const [isReady, setIsReady] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+  const [tokenizedUrl, setTokenizedUrl] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
   const [timeUntilCall, setTimeUntilCall] = useState<string>("");
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -56,12 +61,31 @@ export default function VideoCall({
     return () => clearInterval(interval);
   }, [scheduledAt, durationMinutes]);
 
-  const handleJoinCall = () => {
-    setHasJoined(true);
+  const handleJoinCall = async () => {
+    setIsLoadingToken(true);
+    setTokenError(null);
+    try {
+      const endpoint = type === "group-session"
+        ? `/api/group-sessions/${callId}/token`
+        : `/api/calls/${callId}/token`;
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to get meeting token");
+      }
+      const { token } = await res.json();
+      setTokenizedUrl(`${roomUrl}?t=${token}`);
+      setHasJoined(true);
+    } catch (err: any) {
+      setTokenError(err.message || "Failed to join call");
+    } finally {
+      setIsLoadingToken(false);
+    }
   };
 
   const handleLeaveCall = () => {
     setHasJoined(false);
+    setTokenizedUrl(null);
     if (onLeave) onLeave();
   };
 
@@ -141,14 +165,25 @@ export default function VideoCall({
           </ul>
         </div>
 
+        {tokenError && (
+          <div className="bg-red-50 text-red-700 rounded-lg p-3 text-sm mb-4">{tokenError}</div>
+        )}
+
         <button
           onClick={handleJoinCall}
-          className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+          disabled={isLoadingToken}
+          className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Join Video Call
+          {isLoadingToken ? (
+            <span>Connecting...</span>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Join Video Call
+            </>
+          )}
         </button>
       </div>
     );
@@ -167,22 +202,14 @@ export default function VideoCall({
       </div>
       <iframe
         ref={iframeRef}
-        src={roomUrl}
+        src={tokenizedUrl || roomUrl}
         allow="camera; microphone; fullscreen; display-capture; autoplay"
         className="w-full aspect-video min-h-[400px]"
         title="Video Call"
       />
       <div className="p-3 bg-gray-50 border-t border-gray-200 text-center">
         <p className="text-xs text-gray-500">
-          Having trouble? Try opening the call in a{" "}
-          <a
-            href={roomUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-teal-600 hover:text-teal-700"
-          >
-            new window
-          </a>
+          Having trouble? Try refreshing the page and joining again.
         </p>
       </div>
     </div>

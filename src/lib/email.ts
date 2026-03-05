@@ -95,6 +95,8 @@ export async function sendCallBookedEmail(
   isSeeker: boolean = false,
   extras?: {
     seekerCondition?: string;
+    seekerGoals?: string[];
+    seekerSurgeryInfo?: string;
     guideConditions?: string[];
     guideSurgeryInfo?: string;
     guideBio?: string;
@@ -119,13 +121,23 @@ export async function sendCallBookedEmail(
     ? `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/seeker`
     : `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/guide`;
 
-  // Guide version: show seeker's condition
+  // Guide version: show seeker's condition, goals, and surgery info
   let aboutSeekerSection = "";
-  if (!isSeeker && extras?.seekerCondition) {
+  if (!isSeeker && (extras?.seekerCondition || extras?.seekerGoals?.length || extras?.seekerSurgeryInfo)) {
+    const seekerDetails: string[] = [];
+    if (extras?.seekerCondition) {
+      seekerDetails.push(`<p style="margin: 0 0 8px 0;"><strong>Condition:</strong> ${extras.seekerCondition}</p>`);
+    }
+    if (extras?.seekerSurgeryInfo) {
+      seekerDetails.push(`<p style="margin: 0 0 8px 0;"><strong>Time since surgery:</strong> ${extras.seekerSurgeryInfo}</p>`);
+    }
+    if (extras?.seekerGoals && extras.seekerGoals.length > 0) {
+      seekerDetails.push(`<p style="margin: 0;"><strong>Recovery goals:</strong> ${extras.seekerGoals.join(", ")}</p>`);
+    }
     aboutSeekerSection = `
       <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
         <p style="margin: 0 0 10px 0; font-weight: 600;">About the seeker:</p>
-        <p style="margin: 0;"><strong>Condition:</strong> ${extras.seekerCondition}</p>
+        ${seekerDetails.join("")}
       </div>
     `;
   }
