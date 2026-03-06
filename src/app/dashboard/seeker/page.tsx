@@ -1,8 +1,9 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { X, Heart, Users, MessageCircle, Sparkles, Phone, Calendar, Star, ChevronRight, Plus, Trash2, Pencil, Activity, Clock, CheckCircle2, AlertCircle, Video } from "lucide-react";
 import { PROCEDURE_TYPES, AGE_RANGES, GENDERS, ACTIVITY_LEVELS, RECOVERY_GOALS, COMPLICATING_FACTORS, LIFESTYLE_CONTEXTS, CHRONIC_PAIN_CONDITIONS, CHRONIC_PAIN_GOALS, CHRONIC_PAIN_COMPLICATING_FACTORS, isChronicPainCondition, getAllConditions } from "@/lib/constants";
 import { getTimeSinceSurgery, getTimeSinceSurgeryLabel, getTimeSinceDiagnosisLabel, getCurrentRecoveryWeek } from "@/lib/surgeryDate";
 import RecoveryJournal from "@/components/seeker/RecoveryJournal";
@@ -47,6 +48,17 @@ function enrichInstance(inst: ProcedureProfile): ProcedureProfile {
   };
 }
 
+function getRecoveryStage(surgeryDate: string | undefined, isChronic: boolean): { label: string; color: string } | null {
+  if (!surgeryDate) return null;
+  if (isChronic) return { label: "Ongoing Management", color: "purple" };
+  const weeks = Math.floor((Date.now() - new Date(surgeryDate).getTime()) / (7 * 24 * 60 * 60 * 1000));
+  if (weeks < 2) return { label: "Early Recovery", color: "red" };
+  if (weeks < 6) return { label: "Active Healing", color: "orange" };
+  if (weeks < 12) return { label: "Building Strength", color: "yellow" };
+  if (weeks < 26) return { label: "Returning to Activity", color: "teal" };
+  return { label: "Long-term Recovery", color: "green" };
+}
+
 export default function SeekerDashboard() {
   const { data: session, status } = useSession();
   const [profile, setProfile] = useState<any>(null);
@@ -88,6 +100,32 @@ export default function SeekerDashboard() {
 
   const [newProcedure, setNewProcedure] = useState("");
 
+  // Banner dismiss state (re-shows after 30 days)
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const [dismissedBanners, setDismissedBanners] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const stored = localStorage.getItem("kizu_dismissed_banners");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as Record<string, number>;
+        const now = Date.now();
+        const active: Record<string, boolean> = {};
+        for (const [key, ts] of Object.entries(parsed)) {
+          if (now - ts < THIRTY_DAYS_MS) active[key] = true;
+        }
+        setDismissedBanners(active);
+      } catch {}
+    }
+  }, []);
+
+  const dismissBanner = useCallback((key: string) => {
+    setDismissedBanners((prev) => ({ ...prev, [key]: true }));
+    const stored = localStorage.getItem("kizu_dismissed_banners");
+    const parsed = stored ? JSON.parse(stored) : {};
+    parsed[key] = Date.now();
+    localStorage.setItem("kizu_dismissed_banners", JSON.stringify(parsed));
+  }, []);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -541,17 +579,56 @@ export default function SeekerDashboard() {
 
   return (
     <div>
+      {/* Welcome Header */}
+      <section className="bg-gradient-to-r from-teal-600 via-teal-700 to-cyan-700 rounded-2xl p-6 sm:p-8 mb-8 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.08)_0%,_transparent_60%)]" />
+        <div className="relative">
+          <h1 className="text-2xl sm:text-3xl font-bold">
+            Welcome back{session?.user?.name ? `, ${session.user.name.split(" ")[0]}` : ""}
+          </h1>
+          <p className="text-teal-100 mt-1.5 text-sm sm:text-base">
+            Keep going — you&apos;re making progress. Every step counts.
+          </p>
+          <div className="flex flex-wrap gap-3 mt-5">
+            <Link href="/watch" className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-full transition-all duration-200 cursor-pointer">
+              <Sparkles className="w-4 h-4" />
+              Watch Stories
+            </Link>
+            <Link href="/guides" className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-full transition-all duration-200 cursor-pointer">
+              <Users className="w-4 h-4" />
+              Find a Guide
+            </Link>
+            <Link href="/community" className="inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-full transition-all duration-200 cursor-pointer">
+              <MessageCircle className="w-4 h-4" />
+              Community
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Become a Guide CTA */}
-      {(session?.user as any)?.role === "SEEKER" && (
-        <section className="bg-gradient-to-r from-cyan-50 to-teal-50 rounded-xl border border-teal-200 p-5 mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-gray-900">Been through it?</h3>
-              <p className="text-sm text-gray-600 mt-0.5">
-                Sharing your story can be just as meaningful for you as it is for others. Many guides say it feels almost therapeutic. Become a guide to share your experience and help seekers.
-              </p>
+      {(session?.user as any)?.role === "SEEKER" && !dismissedBanners["guide-cta"] && (
+        <section className="bg-gradient-to-r from-cyan-50 to-teal-50 rounded-2xl border border-teal-200/60 p-5 mb-6 relative shadow-sm hover:shadow-md transition-shadow duration-200">
+          <button
+            onClick={() => dismissBanner("guide-cta")}
+            className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-white/80 transition-colors cursor-pointer"
+            aria-label="Dismiss banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pr-6">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Heart className="w-5 h-5 text-teal-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Been through it?</h3>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Share your story and help others navigate their recovery. Many guides say it feels therapeutic.
+                </p>
+              </div>
             </div>
-            <div className="self-start">
+            <div className="self-start sm:self-center">
               <GuideCTA variant="light" />
             </div>
           </div>
@@ -559,26 +636,41 @@ export default function SeekerDashboard() {
       )}
 
       {/* Community Forum */}
-      <section className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl border border-cyan-200 p-5 mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h3 className="font-semibold text-gray-900">Community Forum</h3>
-            <p className="text-sm text-gray-600 mt-0.5">
-              Connect with others on similar recovery journeys. Ask questions, share tips, and support each other.
-            </p>
-          </div>
-          <Link
-            href="/community"
-            className="self-start bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 text-sm font-medium whitespace-nowrap"
+      {!dismissedBanners["community-forum"] && (
+        <section className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-cyan-200/60 p-5 mb-6 relative shadow-sm hover:shadow-md transition-shadow duration-200">
+          <button
+            onClick={() => dismissBanner("community-forum")}
+            className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-white/80 transition-colors cursor-pointer"
+            aria-label="Dismiss banner"
           >
-            Visit Community
-          </Link>
-        </div>
-      </section>
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pr-6">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <MessageCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Community Forum</h3>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Connect with others on similar journeys. Ask questions, share tips, and support each other.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/community"
+              className="self-start sm:self-center inline-flex items-center gap-1.5 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer"
+            >
+              Visit Community
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Pending Reviews Banner */}
       {pendingCallReviews.length > 0 && (
-        <section className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8">
+        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8 shadow-sm">
           <h3 className="font-semibold text-amber-900 mb-2">Leave a Review</h3>
           <p className="text-sm text-amber-700 mb-3">
             You have {pendingCallReviews.length} completed {pendingCallReviews.length === 1 ? "call" : "calls"} waiting for your feedback.
@@ -626,23 +718,26 @@ export default function SeekerDashboard() {
       )}
 
       {/* My Procedures Section */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold">My Health Profile</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Your surgeries and conditions, each with their own goals and details
-            </p>
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
+              <Activity className="w-5 h-5 text-teal-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">My Health Profile</h2>
+              <p className="text-sm text-gray-500">
+                Your surgeries and conditions
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {procSaved && <span className="text-sm text-green-600 font-medium">Saved!</span>}
             <button
               onClick={() => setShowAddProcedure(true)}
-              className="text-sm bg-teal-50 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 font-medium flex items-center gap-1"
+              className="text-sm bg-teal-50 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 font-medium flex items-center gap-1 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="w-4 h-4" />
               Add
             </button>
           </div>
@@ -654,11 +749,23 @@ export default function SeekerDashboard() {
             const instances = getInstances(procedureProfiles, proc, profile);
             const isActive = proc === activeProcedure;
 
+            const firstData = enrichInstance(instances[0] || {});
+            const isChronic = isChronicPainCondition(proc);
+            const stage = getRecoveryStage(firstData.surgeryDate, isChronic);
+            const stageColors: Record<string, string> = {
+              red: "bg-red-100 text-red-700",
+              orange: "bg-orange-100 text-orange-700",
+              yellow: "bg-yellow-100 text-yellow-700",
+              teal: "bg-teal-100 text-teal-700",
+              green: "bg-green-100 text-green-700",
+              purple: "bg-purple-100 text-purple-700",
+            };
+
             return (
               <div
                 key={proc}
-                className={`rounded-xl border-2 transition-all ${
-                  isActive ? "border-teal-500 bg-teal-50/50" : "border-gray-200 bg-white"
+                className={`rounded-2xl border-2 transition-all duration-200 ${
+                  isActive ? "border-teal-500 bg-teal-50/30 shadow-sm" : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
               >
                 {/* Procedure Type Header */}
@@ -667,15 +774,13 @@ export default function SeekerDashboard() {
                   className={`p-4 flex items-center justify-between cursor-pointer ${switchingProcedure ? "opacity-50 pointer-events-none" : ""}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                       isActive ? "bg-teal-600" : "bg-gray-100"
                     }`}>
-                      <svg className={`w-5 h-5 ${isActive ? "text-white" : "text-gray-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
+                      <Heart className={`w-5 h-5 ${isActive ? "text-white" : "text-gray-500"}`} />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className={`font-semibold ${isActive ? "text-teal-900" : "text-gray-900"}`}>
                           {proc}
                         </h3>
@@ -684,10 +789,15 @@ export default function SeekerDashboard() {
                             Active
                           </span>
                         )}
+                        {stage && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stageColors[stage.color] || "bg-gray-100 text-gray-700"}`}>
+                            {stage.label}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        {isChronicPainCondition(proc)
-                          ? null
+                        {isChronic
+                          ? (firstData.surgeryDate ? getTimeSinceDiagnosisLabel(firstData.surgeryDate) : null)
                           : `${instances.length} ${instances.length === 1 ? "surgery" : "surgeries"}`}
                       </p>
                     </div>
@@ -699,12 +809,10 @@ export default function SeekerDashboard() {
                           e.stopPropagation();
                           removeProcedure(proc);
                         }}
-                        className="text-gray-400 hover:text-red-500 p-1"
+                        className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                         title="Remove"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -918,7 +1026,7 @@ export default function SeekerDashboard() {
       </section>
 
       {/* Shared Profile Section */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold">About You</h2>
@@ -1077,9 +1185,14 @@ export default function SeekerDashboard() {
 
       {/* My Group Sessions */}
       {groupSessions.length > 0 && (
-        <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">My Group Sessions</h2>
+        <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                <Users className="w-5 h-5 text-purple-600" />
+              </div>
+              <h2 className="text-xl font-bold">My Group Sessions</h2>
+            </div>
             <Link
               href="/group-sessions"
               className="text-sm text-teal-600 hover:text-teal-700 font-medium"
@@ -1160,8 +1273,13 @@ export default function SeekerDashboard() {
       )}
 
       {/* Upcoming Calls */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-        <h2 className="text-xl font-bold mb-4">Your Calls</h2>
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+            <Phone className="w-5 h-5 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-bold">Your Calls</h2>
+        </div>
         {cancelError && (
           <div className="bg-red-50 text-red-700 rounded-lg p-3 text-sm mb-4">{cancelError}</div>
         )}
@@ -1182,31 +1300,47 @@ export default function SeekerDashboard() {
               const showCancelConfirm = cancellingCallId === call.id;
 
               return (
-                <div key={call.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-gray-50">
-                    <div>
-                      <p className="font-medium">{call.guide?.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {parseDate(call.scheduledAt).toLocaleDateString()} at{" "}
-                        {parseDate(call.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {" "}&middot; {call.durationMinutes} min
-                      </p>
+                <div key={call.id} className="border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 transition-colors duration-200">
+                  <div className="flex items-center justify-between p-4 bg-gray-50/80">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                        call.status === "CONFIRMED" ? "bg-green-100" : call.status === "COMPLETED" ? "bg-gray-100" : "bg-red-100"
+                      }`}>
+                        {call.status === "CONFIRMED" ? <Video className="w-4 h-4 text-green-600" /> :
+                         call.status === "COMPLETED" ? <CheckCircle2 className="w-4 h-4 text-gray-500" /> :
+                         <X className="w-4 h-4 text-red-500" />}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{call.guide?.name}</p>
+                        <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {parseDate(call.scheduledAt).toLocaleDateString()} at{" "}
+                          {parseDate(call.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          <span className="text-gray-300">&middot;</span>
+                          <Clock className="w-3.5 h-3.5" />
+                          {call.durationMinutes} min
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {call.status === "CONFIRMED" && !showCancelConfirm && (
                         <button
                           onClick={() => setCancellingCallId(call.id)}
-                          className="text-xs text-red-600 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50"
+                          className="text-xs text-red-600 hover:text-red-700 font-medium px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                         >
                           Cancel
                         </button>
                       )}
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 ${
                         call.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
                         call.status === "COMPLETED" ? "bg-gray-100 text-gray-600" :
-                        "bg-red-100 text-red-700"
+                        call.status === "CANCELLED" ? "bg-red-100 text-red-700" :
+                        "bg-yellow-100 text-yellow-700"
                       }`}>
-                        {call.status}
+                        {call.status === "CONFIRMED" ? "Upcoming" :
+                         call.status === "COMPLETED" ? "Completed" :
+                         call.status === "CANCELLED" ? "Cancelled" :
+                         call.status}
                       </span>
                     </div>
                   </div>
@@ -1293,8 +1427,13 @@ export default function SeekerDashboard() {
       </section>
 
       {/* My Reviews Section */}
-      <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-        <h2 className="text-xl font-bold mb-4">My Reviews ({myReviews.length})</h2>
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center">
+            <Star className="w-5 h-5 text-yellow-500" />
+          </div>
+          <h2 className="text-xl font-bold">My Reviews ({myReviews.length})</h2>
+        </div>
         {myReviews.length === 0 ? (
           <p className="text-gray-400 text-sm">You haven&apos;t left any reviews yet.</p>
         ) : (

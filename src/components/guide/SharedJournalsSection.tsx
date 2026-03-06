@@ -23,7 +23,28 @@ interface JournalEntry {
   createdAt: string;
 }
 
-const MOOD_EMOJIS = ["", "\ud83d\ude1e", "\ud83d\ude15", "\ud83d\ude10", "\ud83d\ude42", "\ud83d\ude04"];
+const MOOD_LABELS = ["Low", "Fair", "Okay", "Good", "Great"] as const;
+
+function tierDot(value: number, invert?: boolean): string {
+  const v = Math.min(10, Math.max(0, value));
+  const tier = v <= 3 ? "low" : v <= 6 ? "mid" : "high";
+  if (invert) return tier === "low" ? "bg-green-500" : tier === "mid" ? "bg-yellow-500" : "bg-red-500";
+  return tier === "low" ? "bg-red-500" : tier === "mid" ? "bg-yellow-500" : "bg-green-500";
+}
+function tierText(value: number, invert?: boolean): string {
+  const v = Math.min(10, Math.max(0, value));
+  const tier = v <= 3 ? "low" : v <= 6 ? "mid" : "high";
+  if (invert) return tier === "low" ? "text-green-600" : tier === "mid" ? "text-yellow-600" : "text-red-600";
+  return tier === "low" ? "text-red-600" : tier === "mid" ? "text-yellow-600" : "text-green-600";
+}
+function moodDot(mood: number): string {
+  const m = Math.min(5, Math.max(1, mood));
+  return m <= 1 ? "bg-red-500" : m <= 3 ? "bg-yellow-500" : "bg-green-500";
+}
+function moodTextColor(mood: number): string {
+  const m = Math.min(5, Math.max(1, mood));
+  return m <= 1 ? "text-red-600" : m <= 3 ? "text-yellow-600" : "text-green-600";
+}
 
 export default function SharedJournalsSection() {
   const [seekers, setSeekers] = useState<SharedSeeker[]>([]);
@@ -153,35 +174,23 @@ export default function SharedJournalsSection() {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 mb-2">
-                          <div>
-                            <p className="text-xs text-gray-500">Pain</p>
-                            <div className="flex items-center gap-1">
-                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-red-400 rounded-full"
-                                  style={{ width: `${entry.painLevel * 10}%` }}
-                                />
-                              </div>
-                              <span className="text-xs font-medium text-gray-700">{entry.painLevel}</span>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Mobility</p>
-                            <div className="flex items-center gap-1">
-                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-blue-400 rounded-full"
-                                  style={{ width: `${entry.mobilityLevel * 10}%` }}
-                                />
-                              </div>
-                              <span className="text-xs font-medium text-gray-700">{entry.mobilityLevel}</span>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500">Mood</p>
-                            <span className="text-lg">{MOOD_EMOJIS[entry.mood] || entry.mood}</span>
-                          </div>
+                        <div className="flex items-center gap-1 text-xs flex-wrap mb-2">
+                          <span className={`w-2 h-2 rounded-full ${tierDot(entry.painLevel, true)} flex-shrink-0`} />
+                          <span className={`font-medium ${tierText(entry.painLevel, true)}`}>Pain {entry.painLevel}</span>
+                          <span className="text-gray-300 mx-0.5">&middot;</span>
+                          <span className={`w-2 h-2 rounded-full ${tierDot(entry.mobilityLevel)} flex-shrink-0`} />
+                          <span className={`font-medium ${tierText(entry.mobilityLevel)}`}>Mobility {entry.mobilityLevel}</span>
+                          <span className="text-gray-300 mx-0.5">&middot;</span>
+                          {(() => {
+                            const moodIdx = Math.min(5, Math.max(1, entry.mood)) - 1;
+                            return (
+                              <>
+                                <span className={`w-2 h-2 rounded-full ${moodDot(entry.mood)} flex-shrink-0`} />
+                                <span className="text-gray-500">Mood:</span>
+                                <span className={`font-medium ${moodTextColor(entry.mood)}`}>{MOOD_LABELS[moodIdx]}</span>
+                              </>
+                            );
+                          })()}
                         </div>
 
                         {entry.notes && (

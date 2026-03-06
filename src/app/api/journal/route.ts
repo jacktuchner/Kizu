@@ -95,16 +95,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!painLevel || painLevel < 1 || painLevel > 10) {
+    if (painLevel === undefined || painLevel < 0 || painLevel > 10) {
       return NextResponse.json(
-        { error: "painLevel must be 1-10" },
+        { error: "painLevel must be 0-10" },
         { status: 400 }
       );
     }
 
-    if (!mobilityLevel || mobilityLevel < 1 || mobilityLevel > 10) {
+    if (mobilityLevel === undefined || mobilityLevel < 0 || mobilityLevel > 10) {
       return NextResponse.json(
-        { error: "mobilityLevel must be 1-10" },
+        { error: "mobilityLevel must be 0-10" },
         { status: 400 }
       );
     }

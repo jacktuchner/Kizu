@@ -11,11 +11,12 @@ Kizu (formerly RecoveryConnect/PeerHeal) is a peer-to-peer recovery guidance pla
 ## Build & Development Commands
 
 ```bash
-npm run dev          # Start dev server (port 3000)
 npm run build        # prisma generate && next build (use before deploy)
 npm run lint         # ESLint
 npm run db:seed      # Seed FAQ prompts via prisma/seed.ts
 ```
+
+**The dev server is managed externally.** Never run `npm run dev`, kill node processes, or restart the server. Assume `localhost:3000` is always running.
 
 No test suite exists. Always run `npm run build` to catch TypeScript errors before deploying.
 

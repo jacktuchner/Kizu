@@ -99,47 +99,58 @@ export async function POST(req: NextRequest) {
     }
     // If no availability slots are set, allow any time (backward compatibility)
 
-    // Check if the date is blocked (guide's time off)
+    // Check if the date is blocked (guide's time off) — check both BlockedDate and DateOverride tables
     const requestedDateStr = scheduledDate.toISOString().split("T")[0];
-    const { data: blockedDate } = await supabase
-      .from("BlockedDate")
-      .select("id")
-      .eq("contributorId", contributorId)
-      .eq("date", requestedDateStr)
-      .maybeSingle();
 
-    if (blockedDate) {
+    const [{ data: blockedDate }, { data: blockedOverride }] = await Promise.all([
+      supabase
+        .from("BlockedDate")
+        .select("id")
+        .eq("contributorId", contributorId)
+        .eq("date", requestedDateStr)
+        .maybeSingle(),
+      supabase
+        .from("DateOverride")
+        .select("id")
+        .eq("contributorId", contributorId)
+        .eq("date", requestedDateStr)
+        .eq("isBlocked", true)
+        .maybeSingle(),
+    ]);
+
+    if (blockedDate || blockedOverride) {
       return NextResponse.json(
         { error: "The guide is unavailable on this date. Please choose a different day." },
         { status: 400 }
       );
     }
 
-    // Check for conflicting calls
-    const callStartTime = scheduledDate.toISOString();
-    const callEndTime = new Date(scheduledDate.getTime() + duration * 60 * 1000).toISOString();
+    // Get buffer time from guide's profile
+    const bufferMinutes = guide.profile.callBufferMinutes ?? 15;
+    const bufferMs = bufferMinutes * 60 * 1000;
+
+    // Check for conflicting calls (including buffer time)
+    // Widen the search window to account for buffer + max possible call duration
+    const searchWindowMs = Math.max(2 * 60 * 60 * 1000, (duration + bufferMinutes) * 60 * 1000 + bufferMs);
 
     const { data: existingCalls } = await supabase
       .from("Call")
       .select("id, scheduledAt, durationMinutes")
       .eq("contributorId", contributorId)
       .in("status", ["REQUESTED", "CONFIRMED"])
-      .gte("scheduledAt", new Date(scheduledDate.getTime() - 2 * 60 * 60 * 1000).toISOString()) // 2 hours before
-      .lte("scheduledAt", new Date(scheduledDate.getTime() + 2 * 60 * 60 * 1000).toISOString()); // 2 hours after
+      .gte("scheduledAt", new Date(scheduledDate.getTime() - searchWindowMs).toISOString())
+      .lte("scheduledAt", new Date(scheduledDate.getTime() + searchWindowMs).toISOString());
 
     if (existingCalls && existingCalls.length > 0) {
-      // Check for actual overlap
-      for (const call of existingCalls) {
-        const existingStart = new Date(call.scheduledAt).getTime();
-        const existingEnd = existingStart + (call.durationMinutes || 30) * 60 * 1000;
-        const requestedStart = scheduledDate.getTime();
-        const requestedEnd = requestedStart + duration * 60 * 1000;
+      const requestedStart = scheduledDate.getTime();
+      const requestedEnd = requestedStart + duration * 60 * 1000;
 
-        if (
-          (requestedStart >= existingStart && requestedStart < existingEnd) ||
-          (requestedEnd > existingStart && requestedEnd <= existingEnd) ||
-          (requestedStart <= existingStart && requestedEnd >= existingEnd)
-        ) {
+      for (const call of existingCalls) {
+        const existingStart = new Date(call.scheduledAt).getTime() - bufferMs;
+        const existingEnd = existingStart + (call.durationMinutes || 30) * 60 * 1000 + bufferMs + bufferMs;
+
+        // Simple interval overlap: two intervals overlap if one starts before the other ends
+        if (requestedStart < existingEnd && requestedEnd > existingStart) {
           return NextResponse.json(
             { error: "This time slot is already booked. Please choose a different time." },
             { status: 409 }

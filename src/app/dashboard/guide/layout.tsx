@@ -8,6 +8,7 @@ import { useEffect } from "react";
 const tabs = [
   { href: "/dashboard/guide", label: "Overview" },
   { href: "/dashboard/guide/content", label: "Content" },
+  { href: "/dashboard/guide/calls", label: "Calls" },
   { href: "/dashboard/guide/profile", label: "Profile" },
   { href: "/dashboard/guide/analytics", label: "Analytics" },
 ];

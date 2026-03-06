@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { JOURNAL_MILESTONE_PRESETS, JOURNAL_MILESTONE_PRESETS_CHRONIC_PAIN, JOURNAL_MOOD_EMOJIS, JOURNAL_TRIGGER_PRESETS } from "@/lib/constants";
+import { Plus, Pencil, Trash2, ChevronDown, Flame, BookOpen } from "lucide-react";
+import { JOURNAL_MILESTONE_PRESETS, JOURNAL_MILESTONE_PRESETS_CHRONIC_PAIN, JOURNAL_TRIGGER_PRESETS } from "@/lib/constants";
 import { getTimeSinceSurgeryLabel, getTimeSinceDiagnosisLabel } from "@/lib/surgeryDate";
 import { parseDate } from "@/lib/dates";
 
@@ -37,6 +38,35 @@ interface RecoveryJournalProps {
   conditionCategory?: string;
   procedures?: ProcedureInfo[];
 }
+
+// --- Shared constants ---
+
+const MOOD_LABELS = ["Low", "Fair", "Okay", "Good", "Great"] as const;
+
+/** 3-tier color for 0-10 metrics. invert=true means low=green (for pain). */
+function tierDot(value: number, invert?: boolean): string {
+  const v = Math.min(10, Math.max(0, value));
+  const tier = v <= 3 ? "low" : v <= 6 ? "mid" : "high";
+  if (invert) return tier === "low" ? "bg-green-500" : tier === "mid" ? "bg-yellow-500" : "bg-red-500";
+  return tier === "low" ? "bg-red-500" : tier === "mid" ? "bg-yellow-500" : "bg-green-500";
+}
+function tierText(value: number, invert?: boolean): string {
+  const v = Math.min(10, Math.max(0, value));
+  const tier = v <= 3 ? "low" : v <= 6 ? "mid" : "high";
+  if (invert) return tier === "low" ? "text-green-600" : tier === "mid" ? "text-yellow-600" : "text-red-600";
+  return tier === "low" ? "text-red-600" : tier === "mid" ? "text-yellow-600" : "text-green-600";
+}
+/** Mood color: 1=red, 2-3=yellow, 4-5=green */
+function moodDot(mood: number): string {
+  const m = Math.min(5, Math.max(1, mood));
+  return m <= 1 ? "bg-red-500" : m <= 3 ? "bg-yellow-500" : "bg-green-500";
+}
+function moodText(mood: number): string {
+  const m = Math.min(5, Math.max(1, mood));
+  return m <= 1 ? "text-red-600" : m <= 3 ? "text-yellow-600" : "text-green-600";
+}
+
+// --- Sub-components ---
 
 function ConditionDropdown({ value, options, onChange }: {
   value: string;
@@ -87,6 +117,217 @@ function ConditionDropdown({ value, options, onChange }: {
   );
 }
 
+/** Mood button group — 5 options, 1-5 internally */
+function MoodButtonGroup({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const selectedColors = [
+    "bg-red-500 text-white",
+    "bg-yellow-500 text-gray-800",
+    "bg-yellow-500 text-gray-800",
+    "bg-green-500 text-white",
+    "bg-green-500 text-white",
+  ];
+  const clamped = Math.min(5, Math.max(1, value));
+
+  return (
+    <div className="flex rounded-xl overflow-hidden border border-gray-200">
+      {MOOD_LABELS.map((label, i) => {
+        const isSelected = clamped === i + 1;
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onChange(i + 1)}
+            className={`flex-1 py-2 text-xs font-medium transition-all ${
+              isSelected ? selectedColors[i] : "bg-white text-gray-500 hover:bg-gray-50"
+            } ${i > 0 ? "border-l border-gray-200" : ""}`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Gradient slider for 0-10 metrics */
+function MetricSlider({ value, onChange, gradient, label }: {
+  value: number;
+  onChange: (v: number) => void;
+  gradient: string;
+  label: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-bold text-gray-900 tabular-nums">{value}<span className="text-gray-400 font-normal">/10</span></span>
+      </div>
+      <div className="relative">
+        <div className="absolute top-[10px] left-0 right-0 h-2 rounded-full" style={{ background: gradient }} />
+        <input
+          type="range"
+          min={0}
+          max={10}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value, 10))}
+          className="journal-slider relative z-10"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Compact entry card for the feed */
+function EntryCard({ entry, isViewAll, isChronicPain, onEdit, onDelete }: {
+  entry: JournalEntry;
+  isViewAll: boolean;
+  isChronicPain: boolean;
+  onEdit: (entry: JournalEntry) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasExtra = !!(entry.notes || (entry.milestones?.length > 0) || (entry.triggers?.length > 0));
+
+  const moodClamped = Math.min(5, Math.max(1, entry.mood));
+  const moodLabel = MOOD_LABELS[moodClamped - 1];
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 transition-colors">
+      <div
+        className={`px-4 py-3 ${hasExtra ? "cursor-pointer" : ""}`}
+        onClick={() => hasExtra && setExpanded(!expanded)}
+      >
+        {/* Top row: date + badges + actions */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-gray-800">
+              {parseDate(entry.createdAt).toLocaleDateString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+            {isViewAll && (
+              <span className="text-[11px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full border border-blue-200">
+                {entry.procedureType}
+              </span>
+            )}
+            {entry.recoveryWeek !== null && !isChronicPain && (
+              <span className="text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                Wk {entry.recoveryWeek}
+              </span>
+            )}
+            {entry.isFlare && (
+              <span className="text-[11px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                <Flame className="w-3 h-3" /> Flare
+              </span>
+            )}
+            {entry.isShared && (
+              <span className="text-[11px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded-full">Shared</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(entry); }}
+              className="text-gray-400 hover:text-teal-600 p-1 rounded-lg hover:bg-teal-50 transition-colors"
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}
+              className="text-gray-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+            {hasExtra && (
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+            )}
+          </div>
+        </div>
+
+        {/* Metrics row: colored dots with numeric values */}
+        <div className="flex items-center gap-1 text-xs flex-wrap">
+          <span className={`w-2 h-2 rounded-full ${tierDot(entry.painLevel, true)} flex-shrink-0`} />
+          <span className={`font-medium ${tierText(entry.painLevel, true)}`}>Pain {entry.painLevel}</span>
+          <span className="text-gray-300 mx-0.5">&middot;</span>
+          <span className={`w-2 h-2 rounded-full ${tierDot(entry.mobilityLevel)} flex-shrink-0`} />
+          <span className={`font-medium ${tierText(entry.mobilityLevel)}`}>Mobility {entry.mobilityLevel}</span>
+          {entry.energyLevel != null && (
+            <>
+              <span className="text-gray-300 mx-0.5">&middot;</span>
+              <span className={`w-2 h-2 rounded-full ${tierDot(entry.energyLevel)} flex-shrink-0`} />
+              <span className={`font-medium ${tierText(entry.energyLevel)}`}>Energy {entry.energyLevel}</span>
+            </>
+          )}
+          <span className="text-gray-300 mx-0.5">&middot;</span>
+          <span className={`w-2 h-2 rounded-full ${moodDot(entry.mood)} flex-shrink-0`} />
+          <span className="text-gray-500">Mood:</span>
+          <span className={`font-medium ${moodText(entry.mood)}`}>{moodLabel}</span>
+        </div>
+      </div>
+
+      {/* Expandable details */}
+      <div className={`overflow-hidden transition-all duration-300 ${expanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
+        <div className="px-4 pb-3 border-t border-gray-100 pt-2.5 space-y-2">
+          {entry.triggers?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-xs text-gray-500 mr-0.5">Triggers:</span>
+              {entry.triggers.map((t) => (
+                <span key={t} className="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-200">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          {entry.milestones?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-xs text-gray-500 mr-0.5">Milestones:</span>
+              {entry.milestones.map((m) => (
+                <span key={m} className="text-[11px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+                  {m}
+                </span>
+              ))}
+            </div>
+          )}
+          {entry.notes && (
+            <p className="text-sm text-gray-600">{entry.notes}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function computeStreak(entries: JournalEntry[]): number {
+  if (entries.length === 0) return 0;
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < 365; i++) {
+    const checkDate = new Date(today);
+    checkDate.setDate(checkDate.getDate() - i);
+    const dateStr = checkDate.toISOString().split("T")[0];
+    const hasEntry = entries.some((e) => {
+      const entryDate = parseDate(e.createdAt).toISOString().split("T")[0];
+      return entryDate === dateStr;
+    });
+    if (hasEntry) {
+      streak++;
+    } else if (i === 0) {
+      continue;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// --- Main component ---
+
 export default function RecoveryJournal({ procedureType, surgeryDate, currentWeek, conditionCategory, procedures }: RecoveryJournalProps) {
   const [selectedCondition, setSelectedCondition] = useState<string>(procedureType);
   const isViewAll = selectedCondition === "__ALL__";
@@ -103,7 +344,7 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
   const [saving, setSaving] = useState(false);
   const hasMultipleConditions = (procedures?.length || 0) > 1;
 
-  // Form state
+  // Form state — sliders 0-10, mood 1-5
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formPain, setFormPain] = useState(5);
@@ -165,16 +406,16 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
   }
 
   function startEdit(entry: JournalEntry) {
-    setFormPain(entry.painLevel);
-    setFormMobility(entry.mobilityLevel);
-    setFormMood(entry.mood);
+    setFormPain(Math.min(10, Math.max(0, entry.painLevel)));
+    setFormMobility(Math.min(10, Math.max(0, entry.mobilityLevel)));
+    setFormMood(Math.min(5, Math.max(1, entry.mood)));
     setFormNotes(entry.notes || "");
     setFormMilestones(entry.milestones || []);
     setFormCustomMilestone("");
     setFormShared(entry.isShared);
     setFormTriggers(entry.triggers || []);
     setFormIsFlare(entry.isFlare || false);
-    setFormEnergyLevel(entry.energyLevel ?? 5);
+    setFormEnergyLevel(entry.energyLevel != null ? Math.min(10, Math.max(0, entry.energyLevel)) : 5);
     setEditingId(entry.id);
     setShowForm(true);
   }
@@ -231,7 +472,6 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
           resetForm();
         }
       } else {
-        // When in "View All" mode, create entries under the default (active) condition
         const entryProcedure = isViewAll ? procedureType : selectedCondition;
         const entryProcInfo = procedures?.find((p) => p.procedureType === entryProcedure);
         const entrySurgeryDate = entryProcInfo?.surgeryDate ?? surgeryDate;
@@ -285,167 +525,33 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
     }
   }
 
-  // Compute week label for header (skip for chronic pain and View All)
   const weekLabel = isViewAll ? null : (isChronicPain ? null : (effectiveSurgeryDate ? getTimeSinceSurgeryLabel(effectiveSurgeryDate) : null));
   const diagnosisLabel = isViewAll ? null : (isChronicPain && effectiveSurgeryDate ? getTimeSinceDiagnosisLabel(effectiveSurgeryDate) : null);
-
-  // Quick stats from latest 2 entries
-  const latest = entries[0] || null;
-  const previous = entries[1] || null;
-
-  function trendArrow(current: number, prev: number | null, invertColor: boolean) {
-    if (prev === null) return null;
-    const diff = current - prev;
-    if (diff === 0) return <span className="text-gray-400 text-xs ml-1">—</span>;
-    const up = diff > 0;
-    const color = invertColor
-      ? (up ? "text-red-500" : "text-green-500")
-      : (up ? "text-green-500" : "text-red-500");
-    return (
-      <span className={`${color} text-xs ml-1`}>
-        {up ? "\u25B2" : "\u25BC"} {Math.abs(diff)}
-      </span>
-    );
-  }
-
-  // SVG Trend Chart (last 10 entries, chronological)
-  const chartEntries = [...entries].slice(0, 10).reverse();
-  const showChart = chartEntries.length >= 2;
-
-  function renderChart() {
-    const width = 400;
-    const height = 160;
-    const padding = { top: 20, right: 20, bottom: 30, left: 35 };
-    const plotW = width - padding.left - padding.right;
-    const plotH = height - padding.top - padding.bottom;
-
-    const n = chartEntries.length;
-    const xStep = n > 1 ? plotW / (n - 1) : plotW;
-
-    function toY(val: number) {
-      return padding.top + plotH - ((val - 1) / 9) * plotH;
-    }
-
-    function buildPath(key: "painLevel" | "mobilityLevel") {
-      return chartEntries
-        .map((e, i) => {
-          const x = padding.left + i * xStep;
-          const y = toY(e[key]);
-          return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-        })
-        .join(" ");
-    }
-
-    const yTicks = [1, 3, 5, 7, 10];
-
-    return (
-      <div className="mt-4">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-md" preserveAspectRatio="xMidYMid meet">
-          {/* Grid lines */}
-          {yTicks.map((v) => (
-            <g key={v}>
-              <line
-                x1={padding.left} y1={toY(v)}
-                x2={width - padding.right} y2={toY(v)}
-                stroke="#e5e7eb" strokeWidth="1"
-              />
-              <text x={padding.left - 8} y={toY(v) + 4} textAnchor="end" className="text-[10px]" fill="#9ca3af">{v}</text>
-            </g>
-          ))}
-          {/* Pain line (orange) */}
-          <path d={buildPath("painLevel")} fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          {chartEntries.map((e, i) => (
-            <circle key={`p-${i}`} cx={padding.left + i * xStep} cy={toY(e.painLevel)} r="3" fill="#f97316" />
-          ))}
-          {/* Mobility line (teal) */}
-          <path d={buildPath("mobilityLevel")} fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          {chartEntries.map((e, i) => (
-            <circle key={`m-${i}`} cx={padding.left + i * xStep} cy={toY(e.mobilityLevel)} r="3" fill="#14b8a6" />
-          ))}
-          {/* Energy line (blue, chronic pain only) */}
-          {isChronicPain && buildEnergyPath() && (
-            <>
-              <path d={buildEnergyPath()!} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              {chartEntries.filter((e) => e.energyLevel != null).map((e) => {
-                const origIdx = chartEntries.indexOf(e);
-                return (
-                  <circle key={`e-${origIdx}`} cx={padding.left + origIdx * xStep} cy={toY(e.energyLevel!)} r="3" fill="#3b82f6" />
-                );
-              })}
-            </>
-          )}
-          {/* X-axis labels */}
-          {chartEntries.map((e, i) => (
-            <text
-              key={`x-${i}`}
-              x={padding.left + i * xStep}
-              y={height - 5}
-              textAnchor="middle"
-              className="text-[9px]"
-              fill="#9ca3af"
-            >
-              {parseDate(e.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </text>
-          ))}
-        </svg>
-        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 bg-orange-500 inline-block rounded" /> Pain
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-0.5 bg-teal-500 inline-block rounded" /> Mobility
-          </span>
-          {isChronicPain && (
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" /> Energy
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Add energy line to chart for chronic pain
-  function buildEnergyPath() {
-    if (!isChronicPain) return null;
-    const width = 400;
-    const padding = { top: 20, right: 20, bottom: 30, left: 35 };
-    const plotW = width - padding.left - padding.right;
-    const plotH = 160 - padding.top - padding.bottom;
-    const n = chartEntries.length;
-    const xStep = n > 1 ? plotW / (n - 1) : plotW;
-
-    function toY(val: number) {
-      return padding.top + plotH - ((val - 1) / 9) * plotH;
-    }
-
-    return chartEntries
-      .filter((e) => e.energyLevel != null)
-      .map((e, i) => {
-        const origIdx = chartEntries.indexOf(e);
-        const x = padding.left + origIdx * xStep;
-        const y = toY(e.energyLevel!);
-        return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-      })
-      .join(" ");
-  }
-
   const journalTitle = isChronicPain ? "Health Journal" : "Recovery Journal";
+  const streak = computeStreak(entries);
 
   if (loading) {
     return (
-      <section className="bg-white rounded-xl border border-gray-200 p-6">
+      <section className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
         <h2 className="text-xl font-bold">{journalTitle}</h2>
         <p className="text-gray-400 text-sm mt-2">Loading...</p>
       </section>
     );
   }
 
+  // Gradient strings for sliders
+  const PAIN_GRADIENT = "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444)";
+  const MOBILITY_GRADIENT = "linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e)";
+  const ENERGY_GRADIENT = "linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e)";
+
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
+    <section className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+            <BookOpen className="w-5 h-5 text-amber-600" />
+          </div>
           <h2 className="text-xl font-bold">{journalTitle}</h2>
           {hasMultipleConditions && (
             <ConditionDropdown
@@ -468,70 +574,26 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
             </span>
           )}
         </div>
-        {!showForm && (
-          <button
-            onClick={openNewEntry}
-            className="text-sm bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 font-medium flex items-center gap-1 flex-shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Entry
-          </button>
-        )}
-      </div>
-
-      {/* Quick Stats */}
-      {latest && (
-        <div className={`grid ${isChronicPain ? "grid-cols-4" : "grid-cols-3"} gap-3 mb-4`}>
-          <div className="bg-orange-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-500 mb-1">Pain</p>
-            <p className="text-2xl font-bold text-orange-600">
-              {latest.painLevel}
-              {trendArrow(latest.painLevel, previous?.painLevel ?? null, true)}
-            </p>
-            <p className="text-xs text-gray-400">/10</p>
-          </div>
-          <div className="bg-teal-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-500 mb-1">Mobility</p>
-            <p className="text-2xl font-bold text-teal-600">
-              {latest.mobilityLevel}
-              {trendArrow(latest.mobilityLevel, previous?.mobilityLevel ?? null, false)}
-            </p>
-            <p className="text-xs text-gray-400">/10</p>
-          </div>
-          <div className="bg-purple-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-gray-500 mb-1">Mood</p>
-            <p className="text-2xl font-bold">
-              {JOURNAL_MOOD_EMOJIS[latest.mood - 1]}
-            </p>
-            <p className="text-xs text-gray-400">
-              {previous ? (
-                latest.mood > previous.mood
-                  ? <span className="text-green-500">{"\u25B2"}</span>
-                  : latest.mood < previous.mood
-                  ? <span className="text-red-500">{"\u25BC"}</span>
-                  : <span className="text-gray-400">—</span>
-              ) : null}
-            </p>
-          </div>
-          {isChronicPain && (
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-xs text-gray-500 mb-1">Energy</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {latest.energyLevel ?? "—"}
-                {latest.energyLevel != null && trendArrow(latest.energyLevel, previous?.energyLevel ?? null, false)}
-              </p>
-              <p className="text-xs text-gray-400">/10</p>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {streak > 0 && (
+            <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full" title={`${streak}-day streak`}>
+              <Flame className="w-4 h-4" />
+              <span className="text-sm font-semibold">{streak}</span>
             </div>
           )}
+          {!showForm && (
+            <button
+              onClick={openNewEntry}
+              className="text-sm bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 font-medium flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Entry
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Trend Chart */}
-      {showChart && renderChart()}
-
-      {/* Nudge text when no entries — just a subtle line, not a banner */}
+      {/* Empty state */}
       {entries.length === 0 && !showForm && (
         <p className="text-gray-400 text-sm text-center py-4">
           No entries yet. Tap <strong>+ New Entry</strong> to start tracking.
@@ -540,230 +602,196 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
 
       {/* Entry Form */}
       {showForm && (
-        <div className="border border-gray-200 rounded-lg p-4 my-4 bg-gray-50/50 space-y-4">
-          <h3 className="font-semibold text-gray-900">
-            {editingId ? "Edit Entry" : "New Journal Entry"}
-          </h3>
+        <div className="border border-gray-200 rounded-2xl mb-4 bg-white overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/60">
+            <h3 className="font-semibold text-gray-900">
+              {editingId ? "Edit Entry" : "New Journal Entry"}
+            </h3>
+          </div>
 
-          {/* Pain Slider */}
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">
-              <span>Pain Level</span>
-              <span className="text-orange-600 font-bold">{formPain}/10</span>
-            </label>
-            <input
-              type="range" min={1} max={10} value={formPain}
-              onChange={(e) => setFormPain(parseInt(e.target.value))}
-              className="w-full accent-orange-500"
+          <div className="px-5 py-4 space-y-4">
+            {/* Pain slider */}
+            <MetricSlider
+              value={formPain}
+              onChange={setFormPain}
+              gradient={PAIN_GRADIENT}
+              label="Pain Level"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>Minimal</span><span>Severe</span>
-            </div>
-          </div>
 
-          {/* Mobility Slider */}
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">
-              <span>Mobility Level</span>
-              <span className="text-teal-600 font-bold">{formMobility}/10</span>
-            </label>
-            <input
-              type="range" min={1} max={10} value={formMobility}
-              onChange={(e) => setFormMobility(parseInt(e.target.value))}
-              className="w-full accent-teal-500"
+            {/* Mobility slider */}
+            <MetricSlider
+              value={formMobility}
+              onChange={setFormMobility}
+              gradient={MOBILITY_GRADIENT}
+              label="Mobility"
             />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>Very limited</span><span>Full mobility</span>
-            </div>
-          </div>
 
-          {/* Mood Picker */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Mood</label>
-            <div className="flex gap-2">
-              {JOURNAL_MOOD_EMOJIS.map((emoji, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setFormMood(i + 1)}
-                  className={`text-2xl p-2 rounded-lg border-2 transition-all ${
-                    formMood === i + 1
-                      ? "border-purple-400 bg-purple-50 scale-110"
-                      : "border-transparent hover:border-gray-200"
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
+            {/* Mood + Energy row */}
+            <div className={`grid ${isChronicPain ? "sm:grid-cols-2 gap-4" : ""}`}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Mood</label>
+                <MoodButtonGroup value={formMood} onChange={setFormMood} />
+              </div>
+              {isChronicPain && (
+                <MetricSlider
+                  value={formEnergyLevel}
+                  onChange={setFormEnergyLevel}
+                  gradient={ENERGY_GRADIENT}
+                  label="Energy"
+                />
+              )}
             </div>
-          </div>
 
-          {/* Chronic Pain: Triggers */}
-          {isChronicPain && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Triggers</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {JOURNAL_TRIGGER_PRESETS.map((t) => (
+            {/* Chronic Pain: Flare + Triggers */}
+            {isChronicPain && (
+              <>
+                <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Flare Day</p>
+                    <p className="text-xs text-gray-400">Mark if today is a flare-up</p>
+                  </div>
                   <button
-                    key={t}
                     type="button"
-                    onClick={() => toggleTrigger(t)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                      formTriggers.includes(t)
-                        ? "bg-red-50 border-red-300 text-red-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    onClick={() => setFormIsFlare(!formIsFlare)}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${formIsFlare ? "bg-red-500" : "bg-gray-300"}`}
+                  >
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${formIsFlare ? "left-[22px]" : "left-0.5"}`} />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Triggers</label>
+                  <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-y-auto">
+                    {JOURNAL_TRIGGER_PRESETS.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => toggleTrigger(t)}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                          formTriggers.includes(t)
+                            ? "bg-teal-600 border-teal-600 text-white"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Milestones */}
+            <div className="border-t border-gray-100 pt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Milestones</label>
+              <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-y-auto mb-2">
+                {milestonePresets.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => toggleMilestone(m)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                      formMilestones.includes(m)
+                        ? "bg-teal-600 border-teal-600 text-white"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300"
                     }`}
                   >
-                    {t}
+                    {m}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Chronic Pain: Flare Toggle & Energy */}
-          {isChronicPain && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Flare Day?</label>
+              {formMilestones.filter((m) => !(milestonePresets as readonly string[]).includes(m)).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {formMilestones
+                    .filter((m) => !(milestonePresets as readonly string[]).includes(m))
+                    .map((m) => (
+                      <span key={m} className="text-[11px] bg-teal-600 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                        {m}
+                        <button type="button" onClick={() => toggleMilestone(m)} className="hover:text-teal-200 ml-0.5">
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formCustomMilestone}
+                  onChange={(e) => setFormCustomMilestone(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomMilestone(); } }}
+                  placeholder="Add custom milestone..."
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+                />
                 <button
                   type="button"
-                  onClick={() => setFormIsFlare(!formIsFlare)}
-                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                    formIsFlare
-                      ? "bg-red-50 border-red-400 text-red-700"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300"
-                  }`}
+                  onClick={addCustomMilestone}
+                  disabled={!formCustomMilestone.trim()}
+                  className="text-sm text-teal-600 hover:text-teal-700 font-medium px-2.5 disabled:opacity-40 transition-colors"
                 >
-                  {formIsFlare ? "Yes — Flare" : "No"}
+                  Add
                 </button>
               </div>
-              <div>
-                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">
-                  <span>Energy Level</span>
-                  <span className="text-blue-600 font-bold">{formEnergyLevel}/10</span>
-                </label>
-                <input
-                  type="range" min={1} max={10} value={formEnergyLevel}
-                  onChange={(e) => setFormEnergyLevel(parseInt(e.target.value))}
-                  className="w-full accent-blue-500"
-                />
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>Exhausted</span><span>Energized</span>
+            </div>
+
+            {/* Notes */}
+            <div className="border-t border-gray-100 pt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+              <textarea
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                rows={2}
+                placeholder="How are you feeling today?"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
+              />
+            </div>
+
+            {/* Share Toggle */}
+            <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {formShared ? (
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{formShared ? "Shared with guides" : "Private"}</p>
+                  {formShared && (
+                    <p className="text-xs text-gray-400">
+                      Manage in{" "}
+                      <Link href="/settings" className="text-teal-600 hover:text-teal-700 underline">
+                        Settings
+                      </Link>
+                    </p>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Milestones */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Milestones</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {milestonePresets.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => toggleMilestone(m)}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    formMilestones.includes(m)
-                      ? "bg-amber-50 border-amber-300 text-amber-700"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            {/* Custom milestones display */}
-            {formMilestones.filter((m) => !(milestonePresets as readonly string[]).includes(m)).length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {formMilestones
-                  .filter((m) => !(milestonePresets as readonly string[]).includes(m))
-                  .map((m) => (
-                    <span key={m} className="text-xs bg-amber-50 border border-amber-300 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      {m}
-                      <button type="button" onClick={() => toggleMilestone(m)} className="hover:text-red-500">
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={formCustomMilestone}
-                onChange={(e) => setFormCustomMilestone(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomMilestone(); } }}
-                placeholder="Add custom milestone..."
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-              />
               <button
                 type="button"
-                onClick={addCustomMilestone}
-                disabled={!formCustomMilestone.trim()}
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium px-2 disabled:opacity-40"
+                onClick={() => setFormShared(!formShared)}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${formShared ? "bg-teal-500" : "bg-gray-300"}`}
               >
-                Add
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${formShared ? "left-[22px]" : "left-0.5"}`} />
               </button>
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-            <textarea
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-              rows={3}
-              placeholder="How are you feeling today? Any observations about your recovery..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
-            />
-          </div>
-
-          {/* Share Toggle */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <button
-              type="button"
-              onClick={() => setFormShared(!formShared)}
-              className={`relative w-10 h-6 rounded-full transition-colors ${formShared ? "bg-teal-500" : "bg-gray-300"}`}
-            >
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formShared ? "left-[18px]" : "left-0.5"}`} />
-            </button>
-            <span className="text-sm text-gray-700 flex items-center gap-1.5">
-              {formShared ? (
-                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              )}
-              {formShared ? "Shared with guides" : "Private"}
-            </span>
-          </label>
-          {formShared && (
-            <p className="text-xs text-gray-500 ml-[52px]">
-              Choose which guides can see shared entries in{" "}
-              <Link href="/settings" className="text-teal-600 hover:text-teal-700 underline">
-                Settings &gt; Journal Sharing
-              </Link>.
-            </p>
-          )}
-
           {/* Save / Cancel */}
-          <div className="flex gap-3 pt-2">
+          <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50/40 flex items-center gap-3">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium"
+              className="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium transition-colors"
             >
               {saving ? "Saving..." : editingId ? "Update Entry" : "Save Entry"}
             </button>
             <button
               onClick={resetForm}
-              className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm"
+              className="text-gray-500 hover:text-gray-700 px-3 py-2 text-sm transition-colors"
             >
               Cancel
             </button>
@@ -771,118 +799,31 @@ export default function RecoveryJournal({ procedureType, surgeryDate, currentWee
         </div>
       )}
 
-
       {/* Entry Feed */}
       {entries.length > 0 && (
-        <div className="mt-4 space-y-3">
-          {entries.map((entry) => (
-            <div key={entry.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    {parseDate(entry.createdAt).toLocaleDateString(undefined, {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                  {isViewAll && (
-                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200">
-                      {entry.procedureType}
-                    </span>
-                  )}
-                  {entry.recoveryWeek !== null && !isChronicPain && (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                      Week {entry.recoveryWeek}
-                    </span>
-                  )}
-                  {entry.isFlare && (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
-                      Flare
-                    </span>
-                  )}
-                  {entry.isShared && (
-                    <span title="Shared">
-                      <svg className="w-3.5 h-3.5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                      </svg>
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => startEdit(entry)}
-                    className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(entry.id)}
-                    className="text-sm text-red-500 hover:text-red-600 font-medium"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+        <>
+          <div className="space-y-2">
+            {entries.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                isViewAll={isViewAll}
+                isChronicPain={isChronicPain}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
 
-              {/* Indicators row */}
-              <div className="flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1">
-                  <span className="text-orange-500 font-medium">Pain {entry.painLevel}</span>
-                  <span className="text-gray-300">/10</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="text-teal-500 font-medium">Mobility {entry.mobilityLevel}</span>
-                  <span className="text-gray-300">/10</span>
-                </span>
-                <span className="text-lg">{JOURNAL_MOOD_EMOJIS[entry.mood - 1]}</span>
-                {entry.energyLevel != null && (
-                  <span className="flex items-center gap-1">
-                    <span className="text-blue-500 font-medium">Energy {entry.energyLevel}</span>
-                    <span className="text-gray-300">/10</span>
-                  </span>
-                )}
-              </div>
-
-              {/* Triggers */}
-              {entry.triggers?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {entry.triggers.map((t) => (
-                    <span key={t} className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-200">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Milestones */}
-              {entry.milestones?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {entry.milestones.map((m) => (
-                    <span key={m} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-                      {m}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Notes preview */}
-              {entry.notes && (
-                <p className="text-sm text-gray-600 mt-2 line-clamp-2">{entry.notes}</p>
-              )}
-            </div>
-          ))}
-
-          {/* Load more */}
           {page < totalPages && (
             <button
               onClick={() => fetchEntries(page + 1)}
-              className="w-full text-center text-sm text-teal-600 hover:text-teal-700 font-medium py-2"
+              className="w-full text-center text-sm text-teal-600 hover:text-teal-700 font-medium py-3 mt-2 rounded-lg hover:bg-teal-50 transition-colors"
             >
               Load more ({total - entries.length} remaining)
             </button>
           )}
-        </div>
+        </>
       )}
     </section>
   );

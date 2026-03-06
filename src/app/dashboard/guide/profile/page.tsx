@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import ProceduresSection from "@/components/guide/ProceduresSection";
 import SharedProfileSection from "@/components/guide/SharedProfileSection";
-import GuideCallsSection from "@/components/guide/GuideCallsSection";
 import BioIntroVideoSection from "@/components/guide/BioIntroVideoSection";
 
 
@@ -90,13 +89,6 @@ export default function GuideProfilePage() {
       />
 
       <SharedProfileSection
-        profile={profile}
-        sharedForm={sharedForm}
-        onSharedFormChange={setSharedForm}
-        onProfileUpdate={(updated) => setProfile(updated)}
-      />
-
-      <GuideCallsSection
         profile={profile}
         sharedForm={sharedForm}
         onSharedFormChange={setSharedForm}

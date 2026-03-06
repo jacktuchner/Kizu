@@ -39,15 +39,15 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
 
     if (body.painLevel !== undefined) {
-      if (body.painLevel < 1 || body.painLevel > 10) {
-        return NextResponse.json({ error: "painLevel must be 1-10" }, { status: 400 });
+      if (body.painLevel < 0 || body.painLevel > 10) {
+        return NextResponse.json({ error: "painLevel must be 0-10" }, { status: 400 });
       }
       updates.painLevel = body.painLevel;
     }
 
     if (body.mobilityLevel !== undefined) {
-      if (body.mobilityLevel < 1 || body.mobilityLevel > 10) {
-        return NextResponse.json({ error: "mobilityLevel must be 1-10" }, { status: 400 });
+      if (body.mobilityLevel < 0 || body.mobilityLevel > 10) {
+        return NextResponse.json({ error: "mobilityLevel must be 0-10" }, { status: 400 });
       }
       updates.mobilityLevel = body.mobilityLevel;
     }

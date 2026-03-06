@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { parseDate } from "@/lib/dates";
 
 function getISOWeek(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -72,7 +73,7 @@ export async function GET(
 
       return {
         start: c.scheduledAt,
-        end: new Date(new Date(c.scheduledAt).getTime() + c.durationMinutes * 60000).toISOString(),
+        end: new Date(parseDate(c.scheduledAt).getTime() + c.durationMinutes * 60000).toISOString(),
       };
     });
 

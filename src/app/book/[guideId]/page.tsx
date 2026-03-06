@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, Clock, Video, Globe, User } from "lucide-react";
 import { parseDate } from "@/lib/dates";
 
 interface AvailabilitySlot {
@@ -34,17 +35,11 @@ interface TimeSlot {
   booked?: boolean;
 }
 
-const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
 function formatTime12(time24: string): string {
   const [h, m] = time24.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
+  const ampm = h >= 12 ? "pm" : "am";
   const h12 = h % 12 || 12;
-  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  return `${h12}:${m.toString().padStart(2, "0")}${ampm}`;
 }
 
 function addMinutesToTime(time: string, minutes: number): string {
@@ -56,19 +51,7 @@ function addMinutesToTime(time: string, minutes: number): string {
 }
 
 function formatSlotRange(startTime: string, endTime: string): string {
-  const [sh] = startTime.split(":").map(Number);
-  const [eh] = endTime.split(":").map(Number);
-  const startAmpm = sh >= 12 ? "PM" : "AM";
-  const endAmpm = eh >= 12 ? "PM" : "AM";
-  const startH12 = sh % 12 || 12;
-  const endH12 = eh % 12 || 12;
-  const startMin = startTime.split(":")[1];
-  const endMin = endTime.split(":")[1];
-
-  if (startAmpm === endAmpm) {
-    return `${startH12}:${startMin} - ${endH12}:${endMin} ${endAmpm}`;
-  }
-  return `${startH12}:${startMin} ${startAmpm} - ${endH12}:${endMin} ${endAmpm}`;
+  return `${formatTime12(startTime)} – ${formatTime12(endTime)}`;
 }
 
 function toDateStr(d: Date): string {
@@ -82,13 +65,9 @@ function parseDateLocal(dateStr: string): Date {
 
 function getTimezoneLabel(tz: string): string {
   try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "short",
-    });
+    const formatter = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" });
     const parts = formatter.formatToParts(new Date());
-    const tzPart = parts.find((p) => p.type === "timeZoneName");
-    return tzPart?.value || tz;
+    return parts.find((p) => p.type === "timeZoneName")?.value || tz;
   } catch {
     return tz;
   }
@@ -96,17 +75,28 @@ function getTimezoneLabel(tz: string): string {
 
 function getTimezoneLongLabel(tz: string): string {
   try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "long",
-    });
+    const formatter = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "long" });
     const parts = formatter.formatToParts(new Date());
-    const tzPart = parts.find((p) => p.type === "timeZoneName");
-    return tzPart?.value || tz;
+    return parts.find((p) => p.type === "timeZoneName")?.value || tz;
   } catch {
     return tz;
   }
 }
+
+const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const COMMON_TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
 
 export default function BookCallPage() {
   const { guideId } = useParams();
@@ -128,12 +118,24 @@ export default function BookCallPage() {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [questionsInAdvance, setQuestionsInAdvance] = useState("");
 
-  // Calendar state
-  const [calendarMonth, setCalendarMonth] = useState(() => {
+  // Week navigation: startDate is the first visible day
+  const [weekStart, setWeekStart] = useState<Date>(() => {
     const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
+    now.setDate(now.getDate() + 1);
+    const day = now.getDay();
+    const diff = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
+    now.setDate(now.getDate() + diff);
+    now.setHours(0, 0, 0, 0);
+    return now;
   });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Mobile: single day view
+  const [mobileDate, setMobileDate] = useState<string>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return toDateStr(tomorrow);
+  });
+  const [showMobileDatePicker, setShowMobileDatePicker] = useState(false);
 
   // Timezone
   const [userTimezone, setUserTimezone] = useState(() => {
@@ -144,20 +146,6 @@ export default function BookCallPage() {
     }
   });
   const [showTzPicker, setShowTzPicker] = useState(false);
-
-  const COMMON_TIMEZONES = [
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "America/Phoenix",
-    "America/Anchorage",
-    "Pacific/Honolulu",
-    "Europe/London",
-    "Europe/Paris",
-    "Asia/Tokyo",
-    "Australia/Sydney",
-  ];
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
@@ -190,7 +178,6 @@ export default function BookCallPage() {
     load();
   }, [guideId]);
 
-  // Group availability by day of week
   const availabilityByDay = useMemo(() => {
     const grouped: Record<number, AvailabilitySlot[]> = {};
     availability.forEach((slot) => {
@@ -200,7 +187,6 @@ export default function BookCallPage() {
     return grouped;
   }, [availability]);
 
-  // Group date overrides by date
   const overridesByDate = useMemo(() => {
     const grouped: Record<string, DateOverrideData[]> = {};
     dateOverrides.forEach((o) => {
@@ -210,7 +196,6 @@ export default function BookCallPage() {
     return grouped;
   }, [dateOverrides]);
 
-  // ISO week helper
   function getISOWeek(dateStr: string): string {
     const d = new Date(dateStr + "T00:00:00");
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -219,11 +204,10 @@ export default function BookCallPage() {
     return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`;
   }
 
-  // Generate all available slots for the next 60 days
   const allSlots = useMemo(() => {
     if (availability.length === 0 && dateOverrides.length === 0) return [];
 
-    const slots: (TimeSlot & { date: string })[] = [];
+    const slots: TimeSlot[] = [];
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
@@ -234,13 +218,11 @@ export default function BookCallPage() {
       const dayOfWeek = date.getDay();
       const dateStr = toDateStr(date);
 
-      // Check weekly cap
       if (maxCallsPerWeek !== null) {
         const week = getISOWeek(dateStr);
         if ((callCountByWeek[week] || 0) >= maxCallsPerWeek) continue;
       }
 
-      // Check date overrides
       const dayOverrides = overridesByDate[dateStr];
       if (dayOverrides) {
         if (dayOverrides.some((o) => o.isBlocked)) continue;
@@ -285,73 +267,103 @@ export default function BookCallPage() {
           return slotStartMs < callEnd && slotEndMs > callStart;
         });
 
-        slots.push({
-          date: dateStr,
-          startTime,
-          endTime,
-          label: formatSlotRange(startTime, endTime),
-          booked: overlaps,
-        });
+        slots.push({ date: dateStr, startTime, endTime, label: formatSlotRange(startTime, endTime), booked: overlaps });
       }
     }
 
     return slots;
   }, [availability, availabilityByDay, bookedCalls, blockedDates, dateOverrides, overridesByDate, duration, callBufferMinutes, maxCallsPerWeek, callCountByWeek]);
 
-  // Set of dates that have any slots (available or booked)
-  const datesWithSlots = useMemo(() => {
-    const dates = new Set<string>();
-    allSlots.forEach((s) => dates.add(s.date));
-    return dates;
+  const slotsByDate = useMemo(() => {
+    const map: Record<string, TimeSlot[]> = {};
+    allSlots.forEach((s) => {
+      if (!map[s.date]) map[s.date] = [];
+      map[s.date].push(s);
+    });
+    return map;
   }, [allSlots]);
 
-  // Set of dates that have at least one free (non-booked) slot
   const datesWithFreeSlots = useMemo(() => {
     const dates = new Set<string>();
     allSlots.forEach((s) => { if (!s.booked) dates.add(s.date); });
     return dates;
   }, [allSlots]);
 
-  // Slots for the selected date (both available and booked)
-  const slotsForSelectedDate = useMemo(() => {
-    if (!selectedDate) return [];
-    return allSlots.filter((s) => s.date === selectedDate);
-  }, [allSlots, selectedDate]);
-
-  // Auto-select first date with a free slot
-  useEffect(() => {
-    if (!loading && datesWithFreeSlots.size > 0 && !selectedDate) {
-      const sorted = Array.from(datesWithFreeSlots).sort();
-      if (sorted[0]) setSelectedDate(sorted[0]);
-    }
-  }, [loading, datesWithFreeSlots, selectedDate]);
-
-  // Calendar grid days
-  const calendarDays = useMemo(() => {
-    const { year, month } = calendarMonth;
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startPad = firstDay.getDay();
-    const totalDays = lastDay.getDate();
-
-    const days: (string | null)[] = [];
-    for (let i = 0; i < startPad; i++) days.push(null);
-    for (let d = 1; d <= totalDays; d++) {
-      days.push(toDateStr(new Date(year, month, d)));
-    }
-    return days;
-  }, [calendarMonth]);
-
-  const todayStr = toDateStr(new Date());
-
-  // Clear slot selection when duration or date changes
   useEffect(() => {
     setSelectedSlot(null);
   }, [duration]);
 
-  useEffect(() => {
+  // Desktop: scan from weekStart and pick exactly 4 days that have free slots
+  const VISIBLE_DAYS = 4;
+  const SCAN_RANGE = 30;
+  const visibleDates = useMemo(() => {
+    const dates: string[] = [];
+    for (let i = 0; i < SCAN_RANGE && dates.length < VISIBLE_DAYS; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const ds = toDateStr(d);
+      const daySlots = (slotsByDate[ds] || []).filter((s) => !s.booked);
+      if (daySlots.length > 0) {
+        dates.push(ds);
+      }
+    }
+    return dates;
+  }, [weekStart, slotsByDate]);
+
+  // Header label — cross-month display (e.g. "March – April 2026")
+  const headerLabel = useMemo(() => {
+    if (visibleDates.length === 0) {
+      return weekStart.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
+    const firstDate = parseDateLocal(visibleDates[0]);
+    const lastDate = parseDateLocal(visibleDates[visibleDates.length - 1]);
+    const firstMonth = firstDate.toLocaleDateString("en-US", { month: "long" });
+    const lastMonth = lastDate.toLocaleDateString("en-US", { month: "long" });
+    const year = lastDate.getFullYear();
+    if (firstDate.getMonth() === lastDate.getMonth()) {
+      return `${firstMonth} ${year}`;
+    }
+    if (firstDate.getFullYear() !== lastDate.getFullYear()) {
+      return `${firstMonth} ${firstDate.getFullYear()} – ${lastMonth} ${year}`;
+    }
+    return `${firstMonth} – ${lastMonth} ${year}`;
+  }, [visibleDates, weekStart]);
+
+  function navigateWeek(direction: number) {
+    setWeekStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + direction * VISIBLE_DAYS);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      if (next < tomorrow) return prev;
+      return next;
+    });
     setSelectedSlot(null);
-  }, [selectedDate]);
+  }
+
+  function navigateMobileDate(direction: number) {
+    const current = parseDateLocal(mobileDate);
+    current.setDate(current.getDate() + direction);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    if (current < tomorrow) return;
+    setMobileDate(toDateStr(current));
+    setSelectedSlot(null);
+  }
+
+  // Auto-navigate to first date with free slots
+  useEffect(() => {
+    if (!loading && datesWithFreeSlots.size > 0) {
+      const sorted = Array.from(datesWithFreeSlots).sort();
+      if (sorted[0]) {
+        const firstFreeDate = parseDateLocal(sorted[0]);
+        setWeekStart(new Date(firstFreeDate));
+        setMobileDate(sorted[0]);
+      }
+    }
+  }, [loading, datesWithFreeSlots]);
 
   const hasAvailability = availability.length > 0 || dateOverrides.length > 0;
 
@@ -395,8 +407,8 @@ export default function BookCallPage() {
   const userRole = (session?.user as any)?.role;
   const isGuideOnly = userRole === "GUIDE";
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-8">Loading...</div>;
-  if (!guide) return <div className="max-w-3xl mx-auto px-4 py-8">Guide not found.</div>;
+  if (loading) return <div className="max-w-5xl mx-auto px-4 py-12 text-gray-400">Loading...</div>;
+  if (!guide) return <div className="max-w-5xl mx-auto px-4 py-12 text-gray-400">Guide not found.</div>;
 
   if (isGuideOnly) {
     return (
@@ -435,318 +447,328 @@ export default function BookCallPage() {
 
   const rate = guide.profile?.hourlyRate || 50;
   const price = duration === 60 ? rate : rate / 2;
+  const procedures: string[] = guide.profile?.procedureTypes?.length > 0
+    ? guide.profile.procedureTypes
+    : (guide.profile?.procedureType ? [guide.profile.procedureType] : []);
 
-  const selectedDateObj = selectedDate ? parseDateLocal(selectedDate) : null;
+  const mobileDateSlots = slotsByDate[mobileDate] || [];
+  const mobileDateObj = parseDateLocal(mobileDate);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <Link href="/guides" className="text-sm text-teal-600 hover:text-teal-700 mb-4 inline-block">
-        &larr; Back to Guides
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Link href="/guides" className="text-sm text-teal-600 hover:text-teal-700 mb-8 inline-flex items-center gap-1">
+        <ChevronLeft className="w-4 h-4" />
+        Back to Guides
       </Link>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8">
-        <h1 className="text-2xl font-bold mb-1">Book a Call</h1>
-        <p className="text-gray-500 mb-6">Schedule a 1-on-1 video call with {guide.name}</p>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* ── Left Sidebar ── */}
+        <div className="lg:w-80 flex-shrink-0">
+          <div className="bg-white rounded-2xl border border-gray-200 p-7 sticky top-8">
+            {/* Guide avatar */}
+            <Link href={`/guides/${guideId}?from=booking`} className="block group">
+              <div className="mx-auto mb-5 w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center ring-4 ring-gray-100">
+                {guide.image ? (
+                  <img src={guide.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-10 h-10 text-gray-400" />
+                )}
+              </div>
+              <h2 className="text-lg font-bold text-center text-gray-900 group-hover:text-teal-700 transition-colors">
+                {guide.name}
+              </h2>
+            </Link>
 
-        {/* Guide card — clickable to profile */}
-        <Link href={`/guides/${guideId}?from=booking`} className="block bg-gray-50 rounded-lg p-4 mb-6 flex items-center gap-3 hover:bg-gray-100 transition-colors group">
-          <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-teal-700 font-semibold text-lg">
-              {guide.name?.[0]?.toUpperCase() || "?"}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold group-hover:text-teal-700 transition-colors">{guide.name}</p>
-            <p className="text-sm text-gray-500">
-              {guide.profile?.procedureType} &middot; {guide.profile?.ageRange} &middot; {guide.profile?.timeSinceSurgery} post-op
-            </p>
-          </div>
-          <svg className="w-4 h-4 text-gray-400 group-hover:text-teal-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
+            {procedures.length > 0 && (
+              <p className="text-sm text-gray-500 text-center mt-1.5 leading-relaxed">
+                {procedures.join(", ")}
+              </p>
+            )}
 
-        {/* Duration picker */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setDuration(30)}
-              className={`p-3 rounded-lg border-2 text-center transition-colors ${
-                duration === 30 ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
-              }`}>
-              <p className="font-semibold">30 minutes</p>
-              <p className="text-sm text-gray-500">${(rate / 2).toFixed(2)}</p>
-            </button>
-            <button type="button" onClick={() => setDuration(60)}
-              className={`p-3 rounded-lg border-2 text-center transition-colors ${
-                duration === 60 ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
-              }`}>
-              <p className="font-semibold">60 minutes</p>
-              <p className="text-sm text-gray-500">${rate.toFixed(2)}</p>
-            </button>
+            {/* Meta details */}
+            <div className="mt-6 space-y-4 border-t border-gray-100 pt-6">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span>{duration} min video call</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Video className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span>Daily.co video room</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm font-semibold text-gray-900">
+                <span className="w-4 h-4 flex items-center justify-center text-gray-400 flex-shrink-0 text-base">$</span>
+                <span>${price.toFixed(0)}</span>
+              </div>
+            </div>
+
+            {/* Duration toggle */}
+            <div className="mt-6 border-t border-gray-100 pt-6">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Duration</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDuration(30)}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border-2 ${
+                    duration === 30
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-teal-300 hover:text-teal-700"
+                  }`}
+                >
+                  30 min
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuration(60)}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border-2 ${
+                    duration === 60
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-teal-300 hover:text-teal-700"
+                  }`}
+                >
+                  60 min
+                </button>
+              </div>
+            </div>
+
+            {/* Questions */}
+            <div className="mt-6 border-t border-gray-100 pt-6">
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Questions for guide
+              </label>
+              <textarea
+                value={questionsInAdvance}
+                onChange={(e) => setQuestionsInAdvance(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400 placeholder:text-gray-400"
+                rows={3}
+                placeholder="Anything you'd like to discuss..."
+              />
+            </div>
           </div>
         </div>
 
-        {/* Calendar + Time Slots */}
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-700 mb-3">Pick a Date & Time</h2>
-
-          {!hasAvailability && (
-            <div className="bg-gray-50 rounded-lg p-6 text-center">
-              <p className="text-sm text-gray-500">This guide hasn&apos;t set up their availability yet.</p>
-            </div>
-          )}
-
-          {hasAvailability && (
-            <div className="border border-gray-200 rounded-xl overflow-hidden">
-              <div className="flex flex-col md:flex-row">
-                {/* Left: Calendar */}
-                <div className="md:w-[320px] p-4 md:border-r border-b md:border-b-0 border-gray-200">
-                  {/* Month nav */}
-                  <div className="flex items-center justify-between mb-3">
+        {/* ── Main: Time Slot Grid ── */}
+        <div className="flex-1 min-w-0">
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            {!hasAvailability ? (
+              <div className="p-16 text-center">
+                <p className="text-gray-400">This guide hasn&apos;t set up their availability yet.</p>
+              </div>
+            ) : (
+              <>
+                {/* ── Desktop: Multi-column view ── */}
+                <div className="hidden md:block">
+                  {/* Week navigation header */}
+                  <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                     <button
-                      onClick={() => setCalendarMonth((prev) => {
-                        const d = new Date(prev.year, prev.month - 1, 1);
-                        return { year: d.getFullYear(), month: d.getMonth() };
-                      })}
-                      className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                      onClick={() => navigateWeek(-1)}
+                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {MONTH_NAMES[calendarMonth.month]} {calendarMonth.year}
+                    <span className="text-sm font-semibold text-gray-700">
+                      {headerLabel}
                     </span>
                     <button
-                      onClick={() => setCalendarMonth((prev) => {
-                        const d = new Date(prev.year, prev.month + 1, 1);
-                        return { year: d.getFullYear(), month: d.getMonth() };
-                      })}
-                      className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                      onClick={() => navigateWeek(1)}
+                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      <ChevronRight className="w-5 h-5" />
                     </button>
                   </div>
 
-                  {/* Day headers */}
-                  <div className="grid grid-cols-7 mb-1">
-                    {SHORT_DAYS.map((d) => (
-                      <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
-                    ))}
-                  </div>
-
-                  {/* Day cells */}
-                  <div className="grid grid-cols-7">
-                    {calendarDays.map((dateStr, i) => {
-                      if (!dateStr) {
-                        return <div key={`pad-${i}`} className="h-10" />;
-                      }
-
-                      const isPast = dateStr <= todayStr;
-                      const hasSlots = datesWithSlots.has(dateStr);
-                      const hasFreeSlots = datesWithFreeSlots.has(dateStr);
-                      const isSelected = selectedDate === dateStr;
-                      const isToday = dateStr === todayStr;
-                      const dayNum = parseDateLocal(dateStr).getDate();
-                      // Allow clicking dates that have any slots (even all booked) to show the booked state
-                      const isClickable = !isPast && hasSlots;
-
-                      return (
-                        <button
-                          key={dateStr}
-                          onClick={() => {
-                            if (isClickable) {
-                              setSelectedDate(dateStr);
-                            }
-                          }}
-                          disabled={!isClickable}
-                          className={`h-10 w-full flex items-center justify-center text-sm rounded-lg transition-colors ${
-                            isSelected
-                              ? "bg-teal-600 text-white font-bold"
-                              : !isClickable
-                              ? "text-gray-300 cursor-default"
-                              : isToday
-                              ? "text-teal-700 font-bold hover:bg-teal-50"
-                              : hasFreeSlots
-                              ? "text-teal-700 font-semibold hover:bg-teal-50 cursor-pointer"
-                              : "text-gray-400 font-medium hover:bg-gray-50 cursor-pointer"
-                          }`}
-                        >
-                          {dayNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Timezone */}
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>{getTimezoneLongLabel(userTimezone)} ({getTimezoneLabel(userTimezone)})</span>
-                      <button
-                        onClick={() => setShowTzPicker(!showTzPicker)}
-                        className="text-teal-600 hover:text-teal-700 font-medium ml-1"
-                      >
-                        Change
-                      </button>
+                  {visibleDates.length === 0 ? (
+                    <div className="p-16 text-center">
+                      <p className="text-sm text-gray-400">No available slots this week. Try navigating forward.</p>
                     </div>
-                    {showTzPicker && (
-                      <div className="mt-2">
-                        <select
-                          value={userTimezone}
-                          onChange={(e) => {
-                            setUserTimezone(e.target.value);
-                            setShowTzPicker(false);
-                          }}
-                          className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
-                        >
-                          {COMMON_TIMEZONES.map((tz) => (
-                            <option key={tz} value={tz}>{getTimezoneLongLabel(tz)} ({getTimezoneLabel(tz)})</option>
-                          ))}
-                        </select>
+                  ) : (
+                    <>
+                      {/* Column headers — only days with slots */}
+                      <div className="grid grid-cols-4 border-b border-gray-100">
+                        {visibleDates.map((dateStr) => {
+                          const d = parseDateLocal(dateStr);
+                          return (
+                            <div key={dateStr} className="text-center py-4 border-r border-gray-100 last:border-r-0">
+                              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                                {SHORT_DAYS[d.getDay()]}
+                              </p>
+                              <p className="text-xl font-bold text-gray-900 mt-0.5">
+                                {d.getDate()}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {d.toLocaleDateString("en-US", { month: "short" })}
+                              </p>
+                            </div>
+                          );
+                        })}
                       </div>
+
+                      {/* Slot columns — hidden scrollbar */}
+                      <div className={`grid grid-cols-4`}>
+                        {visibleDates.map((dateStr) => {
+                          const daySlots = (slotsByDate[dateStr] || []).filter((s) => !s.booked);
+                          return (
+                            <div
+                              key={dateStr}
+                              className="border-r border-gray-100 last:border-r-0 p-3 space-y-2 overflow-y-auto max-h-[420px]"
+                            >
+                              {daySlots.map((slot) => {
+                                const isSelected = selectedSlot?.date === slot.date && selectedSlot?.startTime === slot.startTime;
+                                return (
+                                  <div key={`${slot.date}-${slot.startTime}`}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedSlot(isSelected ? null : slot)}
+                                      className={`w-full py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                                        isSelected
+                                          ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                                          : "bg-white text-gray-700 border-gray-200 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
+                                      }`}
+                                    >
+                                      {formatTime12(slot.startTime)}
+                                    </button>
+                                    {isSelected && (
+                                      <button
+                                        onClick={handleBook}
+                                        disabled={booking}
+                                        className="w-full mt-1.5 py-2.5 rounded-lg text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                                      >
+                                        {booking ? "Processing..." : `Confirm · $${price.toFixed(0)}`}
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* ── Mobile: Single day view ── */}
+                <div className="md:hidden">
+                  <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
+                    <button
+                      onClick={() => navigateMobileDate(-1)}
+                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setShowMobileDatePicker(!showMobileDatePicker)}
+                      className="text-center"
+                    >
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                        {SHORT_DAYS[mobileDateObj.getDay()]}
+                      </p>
+                      <p className="text-xl font-bold text-gray-900 mt-0.5">
+                        {mobileDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => navigateMobileDate(1)}
+                      className="p-2 rounded-lg hover:bg-gray-100 text-gray-400"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {showMobileDatePicker && (
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <input
+                        type="date"
+                        value={mobileDate}
+                        onChange={(e) => {
+                          setMobileDate(e.target.value);
+                          setShowMobileDatePicker(false);
+                          setSelectedSlot(null);
+                        }}
+                        min={toDateStr((() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; })())}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
+
+                  <div className="p-4 space-y-2 min-h-[300px]">
+                    {mobileDateSlots.filter((s) => !s.booked).length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center pt-16">No available slots on this date</p>
+                    ) : (
+                      mobileDateSlots.filter((s) => !s.booked).map((slot) => {
+                        const isSelected = selectedSlot?.date === slot.date && selectedSlot?.startTime === slot.startTime;
+                        return (
+                          <div key={`${slot.date}-${slot.startTime}`}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSlot(isSelected ? null : slot)}
+                              className={`w-full py-3 rounded-lg text-sm font-medium transition-all border ${
+                                isSelected
+                                  ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-teal-400 hover:bg-teal-50"
+                              }`}
+                            >
+                              {formatTime12(slot.startTime)}
+                            </button>
+                            {isSelected && (
+                              <button
+                                onClick={handleBook}
+                                disabled={booking}
+                                className="w-full mt-2 py-3 rounded-lg text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                              >
+                                {booking ? "Processing..." : `Confirm · $${price.toFixed(0)}`}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
 
-                {/* Right: Time slots */}
-                <div className="flex-1 p-4">
-                  {selectedDate && selectedDateObj ? (
-                    <>
-                      <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                        {selectedDateObj.toLocaleDateString("en-US", {
-                          weekday: "long",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </h3>
-
-                      {slotsForSelectedDate.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[320px] overflow-y-auto pr-1">
-                          {slotsForSelectedDate.map((slot) => {
-                            const isSelected =
-                              !slot.booked && selectedSlot?.date === slot.date && selectedSlot?.startTime === slot.startTime;
-                            return (
-                              <button
-                                key={`${slot.date}-${slot.startTime}`}
-                                type="button"
-                                onClick={() => { if (!slot.booked) setSelectedSlot(slot); }}
-                                disabled={slot.booked}
-                                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
-                                  slot.booked
-                                    ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed line-through"
-                                    : isSelected
-                                    ? "bg-teal-600 text-white border-teal-600 shadow-sm"
-                                    : "bg-white text-gray-700 border-gray-200 hover:border-teal-400 hover:text-teal-700"
-                                }`}
-                                title={slot.booked ? "This time is already booked" : ""}
-                              >
-                                {formatTime12(slot.startTime)}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-40 text-sm text-gray-400">
-                          No available slots on this date
-                        </div>
-                      )}
-                    </>
+                {/* Timezone selector */}
+                <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-2.5 text-xs text-gray-500">
+                  <Globe className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                  {showTzPicker ? (
+                    <select
+                      value={userTimezone}
+                      onChange={(e) => { setUserTimezone(e.target.value); setShowTzPicker(false); }}
+                      className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs flex-1 bg-white"
+                      autoFocus
+                    >
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <option key={tz} value={tz}>{getTimezoneLongLabel(tz)} ({getTimezoneLabel(tz)})</option>
+                      ))}
+                    </select>
                   ) : (
-                    <div className="flex items-center justify-center h-40 text-sm text-gray-400">
-                      {datesWithFreeSlots.size > 0
-                        ? "Select a date to see available times"
-                        : datesWithSlots.size > 0
-                        ? "All times are currently booked"
-                        : "No available slots in the next 60 days"}
-                    </div>
+                    <>
+                      <span>{getTimezoneLongLabel(userTimezone)}</span>
+                      <button
+                        onClick={() => setShowTzPicker(true)}
+                        className="text-teal-600 hover:text-teal-700 font-medium"
+                      >
+                        Change
+                      </button>
+                    </>
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Confirmation card */}
-        {selectedSlot && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Confirm Your Booking</h3>
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-teal-700 font-semibold">
-                  {guide.name?.[0]?.toUpperCase() || "?"}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900">{guide.name}</p>
-                <p className="text-sm text-gray-600 mt-0.5">
-                  {parseDateLocal(selectedSlot.date).toLocaleDateString("en-US", {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {selectedSlot.label} ({getTimezoneLabel(userTimezone)})
-                </p>
-                <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-500">
-                  <span>{duration} min</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="font-semibold text-teal-700">${price.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Questions */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Questions for your guide (optional)
-          </label>
-          <textarea
-            value={questionsInAdvance}
-            onChange={(e) => setQuestionsInAdvance(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            rows={3}
-            placeholder="Share any specific questions you'd like to discuss so your guide can prepare..."
-          />
-        </div>
-
-        {/* Submit */}
-        <div className="border-t border-gray-200 pt-4">
-          {error && (
-            <p className="text-red-500 text-sm mb-3 text-center">{error}</p>
-          )}
-          <button
-            onClick={handleBook}
-            disabled={booking || !selectedSlot}
-            className="w-full bg-teal-600 text-white font-semibold py-3 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-          >
-            {booking ? (
-              <>
-                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Processing...
               </>
-            ) : (
-              `Proceed to Payment — $${price.toFixed(2)}`
             )}
-          </button>
-          <p className="text-xs text-gray-400 text-center mt-2">
-            You will be redirected to Stripe to complete your payment securely.
-          </p>
-          <p className="text-xs text-amber-600 text-center mt-1">
-            Cancellations made less than 24 hours before the call are non-refundable.
-          </p>
+          </div>
+
+          {error && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          <div className="mt-4 text-center space-y-1.5">
+            <p className="text-xs text-gray-400">
+              You will be redirected to Stripe to complete payment securely.
+            </p>
+            <p className="text-xs text-amber-600">
+              Cancellations less than 24 hours before the call are non-refundable.
+            </p>
+          </div>
         </div>
       </div>
     </div>
