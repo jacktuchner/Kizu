@@ -126,11 +126,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Set contributorStatus to PENDING_REVIEW. Role stays SEEKER until admin approves.
+  // Set contributorStatus to PENDING_REVIEW and role to BOTH so they can see the guide dashboard
+  const { data: currentUser } = await supabase
+    .from("User")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  const newRole = currentUser?.role === "SEEKER" ? "BOTH" : currentUser?.role;
+
   const { error: userError } = await supabase
     .from("User")
     .update({
       contributorStatus: "PENDING_REVIEW",
+      role: newRole,
       updatedAt: new Date().toISOString(),
     })
     .eq("id", userId);
