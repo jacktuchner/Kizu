@@ -48,16 +48,6 @@ function enrichInstance(inst: ProcedureProfile): ProcedureProfile {
   };
 }
 
-function getRecoveryStage(surgeryDate: string | undefined, isChronic: boolean): { label: string; color: string } | null {
-  if (!surgeryDate) return null;
-  if (isChronic) return { label: "Ongoing Management", color: "purple" };
-  const weeks = Math.floor((Date.now() - new Date(surgeryDate).getTime()) / (7 * 24 * 60 * 60 * 1000));
-  if (weeks < 2) return { label: "Early Recovery", color: "red" };
-  if (weeks < 6) return { label: "Active Healing", color: "orange" };
-  if (weeks < 12) return { label: "Building Strength", color: "yellow" };
-  if (weeks < 26) return { label: "Returning to Activity", color: "teal" };
-  return { label: "Long-term Recovery", color: "green" };
-}
 
 export default function SeekerDashboard() {
   const { data: session, status } = useSession();
@@ -74,6 +64,7 @@ export default function SeekerDashboard() {
   const [sharedSaved, setSharedSaved] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [switchingProcedure, setSwitchingProcedure] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "journal" | "calls" | "reviews">("overview");
 
   // Reviews state
   const [myReviews, setMyReviews] = useState<any[]>([]);
@@ -606,6 +597,32 @@ export default function SeekerDashboard() {
         </div>
       </section>
 
+      {/* Tabs */}
+      <div className="mb-8 border-b border-gray-200">
+        <nav className="flex gap-0 flex-wrap -mb-px">
+          {([
+            { key: "overview", label: "Overview" },
+            { key: "journal", label: "Journal" },
+            { key: "calls", label: "Calls" },
+            { key: "reviews", label: "Reviews" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab.key
+                  ? "border-teal-600 text-teal-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* === Overview Tab === */}
+      {activeTab === "overview" && <>
       {/* Become a Guide CTA */}
       {(session?.user as any)?.role === "SEEKER" && !dismissedBanners["guide-cta"] && (
         <section className="bg-gradient-to-r from-cyan-50 to-teal-50 rounded-2xl border border-teal-200/60 p-5 mb-6 relative shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -668,62 +685,10 @@ export default function SeekerDashboard() {
         </section>
       )}
 
-      {/* Pending Reviews Banner */}
-      {pendingCallReviews.length > 0 && (
-        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8 shadow-sm">
-          <h3 className="font-semibold text-amber-900 mb-2">Leave a Review</h3>
-          <p className="text-sm text-amber-700 mb-3">
-            You have {pendingCallReviews.length} completed {pendingCallReviews.length === 1 ? "call" : "calls"} waiting for your feedback.
-          </p>
-          <div className="space-y-2">
-            {pendingCallReviews.map((call: any) => (
-              <div key={call.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{call.guide?.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {new Date(call.scheduledAt).toLocaleDateString()} &middot; {call.durationMinutes} min
-                  </p>
-                </div>
-                <button
-                  onClick={() => setReviewingCallId(call.id)}
-                  className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                >
-                  Leave a Review
-                </button>
-              </div>
-            ))}
-          </div>
-          {/* Inline review form for pending review */}
-          {pendingCallReviews.some((c: any) => c.id === reviewingCallId) && (
-            <div className="mt-3">
-              {(() => {
-                const call = pendingCallReviews.find((c: any) => c.id === reviewingCallId);
-                if (!call) return null;
-                return (
-                  <CallReviewForm
-                    callId={call.id}
-                    guideId={call.guideId || call.guide?.id}
-                    guideName={call.guide?.name || "Guide"}
-                    onReviewSubmitted={(review) => {
-                      setMyReviews((prev) => [review, ...prev]);
-                      setReviewingCallId(null);
-                    }}
-                    onCancel={() => setReviewingCallId(null)}
-                  />
-                );
-              })()}
-            </div>
-          )}
-        </section>
-      )}
-
       {/* My Procedures Section */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
-              <Activity className="w-5 h-5 text-teal-600" />
-            </div>
             <div>
               <h2 className="text-xl font-bold">My Health Profile</h2>
               <p className="text-sm text-gray-500">
@@ -751,15 +716,6 @@ export default function SeekerDashboard() {
 
             const firstData = enrichInstance(instances[0] || {});
             const isChronic = isChronicPainCondition(proc);
-            const stage = getRecoveryStage(firstData.surgeryDate, isChronic);
-            const stageColors: Record<string, string> = {
-              red: "bg-red-100 text-red-700",
-              orange: "bg-orange-100 text-orange-700",
-              yellow: "bg-yellow-100 text-yellow-700",
-              teal: "bg-teal-100 text-teal-700",
-              green: "bg-green-100 text-green-700",
-              purple: "bg-purple-100 text-purple-700",
-            };
 
             return (
               <div
@@ -787,11 +743,6 @@ export default function SeekerDashboard() {
                         {isActive && (
                           <span className="text-xs bg-teal-600 text-white px-2 py-0.5 rounded-full">
                             Active
-                          </span>
-                        )}
-                        {stage && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stageColors[stage.color] || "bg-gray-100 text-gray-700"}`}>
-                            {stage.label}
                           </span>
                         )}
                       </div>
@@ -1164,8 +1115,10 @@ export default function SeekerDashboard() {
         )}
       </section>
 
-      <PurchaseHistory role="seeker" />
+      </>}
 
+      {/* === Journal Tab === */}
+      {activeTab === "journal" && <>
       {/* Recovery Journal */}
       {activeProcedure && (
         <section className="mb-8">
@@ -1182,7 +1135,10 @@ export default function SeekerDashboard() {
           />
         </section>
       )}
+      </>}
 
+      {/* === Calls Tab === */}
+      {activeTab === "calls" && <>
       {/* My Group Sessions */}
       {groupSessions.length > 0 && (
         <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -1275,9 +1231,6 @@ export default function SeekerDashboard() {
       {/* Upcoming Calls */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-            <Phone className="w-5 h-5 text-blue-600" />
-          </div>
           <h2 className="text-xl font-bold">Your Calls</h2>
         </div>
         {cancelError && (
@@ -1426,12 +1379,62 @@ export default function SeekerDashboard() {
         )}
       </section>
 
+      <PurchaseHistory role="seeker" />
+      </>}
+
+      {/* === Reviews Tab === */}
+      {activeTab === "reviews" && <>
+      {/* Pending Reviews Banner */}
+      {pendingCallReviews.length > 0 && (
+        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-8 shadow-sm">
+          <h3 className="font-semibold text-amber-900 mb-2">Leave a Review</h3>
+          <p className="text-sm text-amber-700 mb-3">
+            You have {pendingCallReviews.length} completed {pendingCallReviews.length === 1 ? "call" : "calls"} waiting for your feedback.
+          </p>
+          <div className="space-y-2">
+            {pendingCallReviews.map((call: any) => (
+              <div key={call.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{call.guide?.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(call.scheduledAt).toLocaleDateString()} &middot; {call.durationMinutes} min
+                  </p>
+                </div>
+                <button
+                  onClick={() => setReviewingCallId(call.id)}
+                  className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                >
+                  Leave a Review
+                </button>
+              </div>
+            ))}
+          </div>
+          {pendingCallReviews.some((c: any) => c.id === reviewingCallId) && (
+            <div className="mt-3">
+              {(() => {
+                const call = pendingCallReviews.find((c: any) => c.id === reviewingCallId);
+                if (!call) return null;
+                return (
+                  <CallReviewForm
+                    callId={call.id}
+                    guideId={call.guideId || call.guide?.id}
+                    guideName={call.guide?.name || "Guide"}
+                    onReviewSubmitted={(review) => {
+                      setMyReviews((prev) => [review, ...prev]);
+                      setReviewingCallId(null);
+                    }}
+                    onCancel={() => setReviewingCallId(null)}
+                  />
+                );
+              })()}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* My Reviews Section */}
       <section className="bg-white rounded-2xl border border-gray-200 p-6 mb-8 shadow-sm hover:shadow-md transition-shadow duration-200">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center">
-            <Star className="w-5 h-5 text-yellow-500" />
-          </div>
           <h2 className="text-xl font-bold">My Reviews ({myReviews.length})</h2>
         </div>
         {myReviews.length === 0 ? (
@@ -1498,6 +1501,7 @@ export default function SeekerDashboard() {
           </div>
         )}
       </section>
+      </>}
 
     </div>
   );

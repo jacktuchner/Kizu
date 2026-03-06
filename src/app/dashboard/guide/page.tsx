@@ -7,7 +7,6 @@ import { parseDate } from "@/lib/dates";
 import CallRequestsSection from "@/components/guide/CallRequestsSection";
 import PurchaseHistory from "@/components/PurchaseHistory";
 import SharedJournalsSection from "@/components/guide/SharedJournalsSection";
-import Link from "next/link";
 
 export default function GuideOverviewPage() {
   const { data: session } = useSession();
@@ -54,7 +53,7 @@ export default function GuideOverviewPage() {
   }
 
   return (
-    <>
+    <div>
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -96,50 +95,6 @@ export default function GuideOverviewPage() {
           <p className="text-2xl font-bold text-cyan-700">{forumReplyCount}</p>
         </div>
       </div>
-      {/* Upcoming Calls Widget */}
-      {(() => {
-        const upcoming = calls
-          .filter((c) => c.status === "CONFIRMED" && parseDate(c.scheduledAt) > new Date())
-          .sort((a, b) => parseDate(a.scheduledAt).getTime() - parseDate(b.scheduledAt).getTime())
-          .slice(0, 3);
-
-        return (
-          <section className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Upcoming Calls</h2>
-              <Link
-                href="/dashboard/guide/calls"
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-              >
-                View all
-              </Link>
-            </div>
-            {upcoming.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-4">No upcoming calls.</p>
-            ) : (
-              <div className="space-y-3">
-                {upcoming.map((call) => (
-                  <div key={call.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{call.seeker?.name || "Seeker"}</p>
-                      <p className="text-xs text-gray-500">
-                        {parseDate(call.scheduledAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                        {" at "}
-                        {parseDate(call.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {" "}&middot; {call.durationMinutes} min
-                      </p>
-                    </div>
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700 flex-shrink-0">
-                      Upcoming
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        );
-      })()}
-
       <CallRequestsSection
         calls={calls}
         onCallUpdate={(callId, updated) => {
@@ -183,6 +138,6 @@ export default function GuideOverviewPage() {
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 }
